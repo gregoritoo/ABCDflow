@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 import math as m
 import seaborn as sn
 import GPy
+import sys 
 tf.keras.backend.set_floatx('float32')
 
 PI = m.pi
 def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
     plt.figure(figsize=(32,16), dpi=100)
     plt.plot(X_s,mean,color="green",label="Predicted values")
-    #plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
+    plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
     plt.plot(X_train,true_data,color="red",label="True data")
     plt.legend()
     
@@ -67,32 +68,36 @@ def exp(x,y1,l,sigma):
 @tf.function
 def compute_posterior(y,cov,cov_s,cov_ss):
     mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.01*tf.eye(cov.shape[0]))),y)
-    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),cov),cov_s) 
+    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.01*tf.eye(cov.shape[0]))),cov_s)
     return mu,cov
 
 @tf.function
 def log_l(X,Y,params,kernel):
     if kernel=="Periodic" :
-        cov = Periodic(X,X,l=params["l"],p=params["p"],sigma=params["sigma"])+0.1*tf.eye(X.shape[0])
+        cov = Periodic(X,Y,l=params["l"],p=params["p"],sigma=params["sigma"])+1*tf.eye(X.shape[0])
     elif kernel == "Linear" :
-        cov = Linear(X,Y,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+ 0.001*tf.eye(X.shape[0])
+        cov = Linear(X,Y,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+1*tf.eye(X.shape[0])
     elif kernel =="SE":
         cov = exp(X,Y,l=params["l"],sigma=params["sigma"])+ 0.001*tf.eye(X.shape[0])
-    loss = 0.5*tf.matmul(tf.matmul(tf.transpose(Y),tf.linalg.inv(cov)),Y) + 0.5*tf.math.log(tf.linalg.det(cov))+0.5*X.shape[0]*tf.math.log([PI*2])
-    return loss
+    loss = -0.5*tf.matmul(tf.matmul(tf.transpose(Y),tf.linalg.inv(cov)),Y) - 0.5*tf.math.log(tf.linalg.det(cov))-0.5*X.shape[0]*tf.math.log([PI*2])
+    
+    return -loss
 
 @tf.function
 def log_cholesky_l(X,Y,params,kernel):
     if kernel=="Periodic" :
-        cov = Periodic(X,X,l=params["l"],p=params["p"],sigma=params["sigma"])+tf.math.abs(params["noise"])*tf.eye(X.shape[0])
+        cov = Periodic(X,X,l=params["l"],p=params["p"],sigma=params["sigma"])+1*tf.eye(X.shape[0])
     elif kernel == "Linear" :
-        cov = Linear(X,X,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+ params["noise"]*tf.eye(X.shape[0])
+        cov = Linear(X,X,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+ tf.eye(X.shape[0])
     elif kernel =="SE":
-        cov = exp(X,X,l=params["l"],sigma=params["sigma"])+ params["noise"]*tf.eye(X.shape[0])
+        cov = exp(X,X,l=params["l"],sigma=params["sigma"]) + tf.eye(X.shape[0])
     _L = tf.linalg.cholesky(cov)
-    _temp = tf.linalg.solve(_L, X)
+    _temp = tf.linalg.solve(_L, Y)
     alpha = tf.linalg.solve(tf.transpose(_L), _temp)
-    loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.linalg.trace(_L) +0.5*X.shape[0]*tf.math.log([PI*2])
+    """ _temp = tf.matmul(tf.linalg.inv(_L),Y)
+    LT = tf.transpose(tf.linalg.inv(_L))
+    alpha = tf.matmul(LT,_temp)"""
+    loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])
     return loss
 
 
@@ -113,8 +118,7 @@ class PeriodicRegressor(object):
         self._noise = tf.compat.v1.get_variable('noise',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.),
-                    constraint=lambda z: tf.clip_by_value(z, 0.1, 100))
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
 
     @tf.function
     def __call__(self,X_train,Y_train):
@@ -132,7 +136,7 @@ class PeriodicRegressor(object):
 
     @property
     def variables(self):
-        return self._l,self._p,self._sigma,self._noise
+        return self._l,self._p,self._sigma#,self._noise
 
 class LinearRegressor(object) :
 
@@ -167,11 +171,11 @@ class SquaredExpRegressor(object) :
         self._l = tf.compat.v1.get_variable('l',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=1000.))
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
         self._sigma = tf.compat.v1.get_variable('sigmab',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=1000.))
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
                     
 
     @tf.function
@@ -195,16 +199,18 @@ class SquaredExpRegressor(object) :
 
 
 if __name__ =="__main__" :
-    X_train = tf.Variable(np.array(np.linspace(0,30,30)).reshape(-1, 1),dtype=tf.float32)
-    Y_train = tf.Variable(np.sin(np.array(np.linspace(1,30,30)).reshape(-1, 1)),dtype=tf.float32)
+    X_train = tf.Variable(np.array(np.linspace(1,60,30)).reshape(-1, 1),dtype=tf.float32)
+    Y_train = tf.Variable(np.sin(np.array(np.linspace(1,60,30)).reshape(-1, 1)),dtype=tf.float32)
     
-    X_s = tf.Variable(np.arange(-2, 30, 0.2).reshape(-1, 1),dtype=tf.float32)
+    X_s = tf.Variable(np.arange(-2, 70, 0.5).reshape(-1, 1),dtype=tf.float32)
     mu = tf.Variable(tf.zeros((1,30)),dtype=tf.float32)
 
-    l,p,sigma=7,0.34,3
+    
+    """l,p,sigma=1,2,54
 
+    model = PeriodicRegressor()
 
-    """
+  
     params={"l":l,"p":p,"sigma":sigma,"noise":0.001}
 
     cov = Periodic(X_train,X_train,l,p,sigma)
@@ -216,48 +222,48 @@ if __name__ =="__main__" :
 
 
     
-    print(log_l(X_train,X_train,params,"SE"))
 
 
-    print(log_cholesky_l(X_train,X_train,params,"Periodic"))
+    print(log_cholesky_l(X_train,Y_train,params,"Periodic"))
     
 
-    m = GPy.models.GPRegression(X_train.numpy(), X_train.numpy(), k, normalizer=False)
-    m.Gaussian_noise = 0.001
+    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
+    m.Gaussian_noise = 1
     print(m)
+    print(m.log_likelihood())
 
-    m.optimize()
-    print(m)
+
  
 
-    print("je")
-
+    print("je") 
     """
+    optimizer = tf.optimizers.Adamax(learning_rate=.01)
     l,p,sigma=1,1,1
-    learning_rate = 0.01
-    best = 10000000
-    nb_restart = 1
+    best = 10e40
+    nb_restart = 5
     loop = 0
-    history = {"log" : [] ,"p":[],"l":[],"sigma":[]}
+    nb_epochs = 1000
+    history = {"log" : [] ,"p":[],"l":[],"sigma":[],"erro":[]}
     while loop < nb_restart :
-        model = PeriodicRegressor()
+        model = SquaredExpRegressor()
         try :
-            for iteration in range(1,1000):
+            for iteration in range(1,nb_epochs):
+                print(iteration)
                 if iteration % 100 == 0 :
-                    learning_rate = 0.01
+                    learning_rate = 0.1
                 with tf.GradientTape(persistent=False) as tape :
-                    print(iteration)
+                    tape.watch(model.variables)
                     val = model(X_train,Y_train)
+                    """k = GPy.kern.StdPeriodic(lengthscale=model._l, input_dim=1, variance=model._sigma,period=model._p)
+                    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
+                    m.Gaussian_noise = 1"""
                 history["log"].append(val.numpy())
-                history["p"].append(model._p.numpy())
                 history["l"].append(model._l.numpy())
                 history["sigma"].append(model._sigma.numpy())
                 gradient = tape.gradient(val,model.variables)
-                print(gradient)
-                print(model.variables)
-                for g,v in zip(gradient,model.variables):
-                    v.assign_add(tf.constant(-1*learning_rate,dtype=tf.float32)*g)
-                
+                optimizer.apply_gradients(zip(gradient, model.variables))
+                sys.stdout.write("\r"+"="*int(iteration/nb_epochs*50)+">"+"."*int((nb_epochs-iteration)/nb_epochs*50)+"|"+" * log likelihood  is : {} at epoch : {} ".format(val,iteration))
+                sys.stdout.flush()
         except Exception as e :
             print(e)
         if val  < best :
@@ -275,8 +281,9 @@ if __name__ =="__main__" :
 
     #plt.plot(np.array(history["log"]).reshape(-1,1))
     plt.plot(np.array(history["p"]).reshape(-1,1),label="p")
-    plt.plot(np.array(history["l"]).reshape(-1,1),label="l")
+    plt.plot(np.array(history["log"]).reshape(-1,1),label="l")
     plt.plot(np.array(history["sigma"]).reshape(-1,1),label="sigma")
+    #plt.plot(np.array(history["erro"]).reshape(-1,1),label="erro")
     plt.legend()
     plt.show()
     mu,cov = best_model.predict(X_train,Y_train,X_s)    
@@ -286,4 +293,3 @@ if __name__ =="__main__" :
     mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=1000)
     plot_gs(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
     plt.show()
-    
