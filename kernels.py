@@ -14,7 +14,7 @@ PI = m.pi
 
 
 def LIN(x,y,params):
-    c,sigmab,sigmav = params[0],params[1],params[2]
+    c = params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
     y1 = tf.math.subtract(y,c*tf.ones_like(y))
@@ -22,13 +22,16 @@ def LIN(x,y,params):
     y2 = tf.transpose(tf.tile(y1, multiply_y))
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
-    w = tf.math.multiply(y2,x2)
-    return sigmab+sigmav*w
+    w = tf.math.multiply(y2,x2) 
+    return w
 
 
 def WN(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
-    return sigma*tf.eye(x.shape[0])
+    x1 = tf.transpose(x)
+    multiply_x = tf.constant([y.shape[0],1])
+    x2 = tf.transpose(tf.tile(x1, multiply_x))
+    return sigma*tf.ones_like(x2)
 
 
 

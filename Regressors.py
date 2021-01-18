@@ -194,7 +194,7 @@ class CustomModel(object):
                 self.__dict__[var] = tf.compat.v1.get_variable(var,
                         dtype=tf.float32,
                         shape=(1,),
-                        initializer=tf.random_uniform_initializer(minval=1., maxval=5.))
+                        initializer=tf.random_uniform_initializer(minval=1., maxval=1.))
 
     @property
     def variables(self):
@@ -216,14 +216,14 @@ class CustomModel(object):
         for var in list_vars : 
             print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))
 
-    @tf.function
+
+   
     def predict(self,X_train,Y_train,X_s,kernels_name):
         params= self._variables
-        print(kernels_name)
         cov = self._get_cov(X_train,X_train,kernels_name,params)
         cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
-        mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss) 
+        mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
 
     def _get_cov(self,X,Y,kernel,params):
@@ -246,5 +246,13 @@ class CustomModel(object):
                 cov  = tf.math.multiply(cov,method(X,Y,[params[p] for p in par]))
                 num += KERNELS_LENGTH[op[1:]]
         return cov
+
+
+    def compute_BIC(self,X_train,Y_train,kernels_name):
+        params= self._variables
+        n =tf.Variable(X_train.shape[0],dtype=tf.float32)
+        k = tf.Variable(len(kernels_name),dtype=tf.float32)
+        ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
+        return k*tf.math.log(n) + 2*ll
 
         

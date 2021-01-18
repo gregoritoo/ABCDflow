@@ -9,13 +9,14 @@ import GPy
 import sys 
 import kernels
 import os 
+import pandas as pd 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
-OPTIMIZER = tf.optimizers.RMSprop(learning_rate=0.1)
+OPTIMIZER = tf.optimizers.RMSprop(learning_rate=0.01)
 
 KERNELS_LENGTH = {
-    "LIN" : 3,
+    "LIN" : 1,
     "WN" : 1,
     "SE" : 2,
     "RQ" : {},
@@ -31,6 +32,23 @@ KERNELS_FUNCTIONS = {
     "SE" : kernels.SE,
 
 }
+
+def make_df(X,stdp,stdi):
+    X = np.array(X).reshape(-1)
+    Y = np.array(np.arange(len(X))).reshape(-1)
+    stdp = np.array(stdp).reshape(-1)
+    stdi = np.array(stdi).reshape(-1)
+    df = pd.DataFrame({"x":X, "y":Y,"stdp":stdp,"stdi":stdi},index=Y)
+    return df 
+
+def plot_gs_pretty(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
+    plt.style.use('seaborn')
+    plt.plot(X_s,mean,color="green",label="Predicted values")
+    plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
+    plt.plot(X_train,true_data,color="red",label="True data")
+    plt.legend()    
+    plt.show()
+
 def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
     plt.figure(figsize=(32,16), dpi=100)
     plt.plot(X_s,mean,color="green",label="Predicted values")
@@ -40,16 +58,16 @@ def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
     
 
 def get_values(mu_s,cov_s,nb_samples=100):
-    samples = np.random.multivariate_normal(mu_s,cov_s,100)
+    samples = np.random.multivariate_normal(mu_s,cov_s,nb_samples)
     stdp = [np.mean(samples[:,i])+1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
     stdi = [np.mean(samples[:,i])-1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
     mean = [np.mean(samples[:,i])for i in range(samples.shape[1])]
     return mean,stdp,stdi
 
-@tf.function
+
 def compute_posterior(y,cov,cov_s,cov_ss):
-    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.01*tf.eye(cov.shape[0]))),y)
-    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.01*tf.eye(cov.shape[0]))),cov_s)
+    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.001*tf.eye(cov.shape[0]))),y)
+    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.001*tf.eye(cov.shape[0]))),cov_s)
     return mu,cov
 
 @tf.function
