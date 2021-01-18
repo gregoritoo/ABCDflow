@@ -8,9 +8,19 @@ import seaborn as sn
 import GPy
 import sys 
 from utils import *
+import os 
+import kernels
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
 
+KERNELS_FUNCTIONS = {
+    "LIN" : kernels.LIN,
+    "WN" : kernels.WN,
+    "PER" : kernels.PER,
+    "SE" : kernels.SE,
+
+}
 
 class PeriodicRegressor(object):
     def __init__(self):
@@ -63,27 +73,31 @@ class LinearRegressor(object) :
         self._c = tf.compat.v1.get_variable('l',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
                    
+        self._sigmab = tf.compat.v1.get_variable('sigmab',
+                    dtype=tf.float32,
+                    shape=(1,),
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
         self._sigmav = tf.compat.v1.get_variable('sigmav',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=0.01, maxval=10.))
+                    initializer=tf.random_uniform_initializer(minval=0.01, maxval=1.))
     @tf.function
     def __call__(self,X_train,Y_train):
         
-        params={"c":self._c,"sigmav":self._sigmav}
+        params={"c":self._c,"sigmab":self._sigmab,"sigmav":self._sigmav}
         return log_cholesky_l(X_train,Y_train,params,kernel="Linear")
 
     @property
     def variables(self):
-        return self._c,self._sigmav
+        return self._c,self._sigmab,self._sigmav
 
     @tf.function
     def predict(self,X_train,Y_train,X_s):
-        cov = Linear(X_train,X_train,c=self._c,sigmav=self._sigmav)
-        cov_ss =  Linear(X_s,X_s,c=self._c,sigmav=self._sigmav)
-        cov_s  = Linear(X_train,X_s,c=self._c,sigmav=self._sigmav)
+        cov = Linear(X_train,X_train,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
+        cov_ss =  Linear(X_s,X_s,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
+        cov_s  = Linear(X_train,X_s,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
         mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
 
@@ -94,7 +108,6 @@ class LinearRegressor(object) :
         for var in list_vars : 
             print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()[0]))))+"{}".format(var.numpy()[0]))
 
-    
 
 
 class SquaredExpRegressor(object) :
@@ -142,6 +155,9 @@ class WhiteNoiseRegressor(object) :
                     dtype=tf.float32,
                     shape=(1,),
                     initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+        self._N = tf.compat.v1.get_variable('unused_variable',
+                    dtype=tf.float32,
+                    initializer=0.0)
                     
     @tf.function
     def __call__(self,X_train,Y_train):
@@ -158,11 +174,77 @@ class WhiteNoiseRegressor(object) :
 
     @property
     def variables(self):
-        return self._sigma
+        return self._sigma,self._N
 
 
     def viewVar(self):
-        var = self.variables
+        list_vars = self.variables
         print("Parameters : ")
         print("   var name               |               value")
-        print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()[0]))))+"{}".format(var.numpy()[0]))
+        for var in list_vars : 
+            print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))
+
+
+class CustomModel(object):
+
+    def __init__(self,params):
+        for attr in params.keys() :
+            pars = params[attr]
+            for var in pars :
+                self.__dict__[var] = tf.compat.v1.get_variable(var,
+                        dtype=tf.float32,
+                        shape=(1,),
+                        initializer=tf.random_uniform_initializer(minval=1., maxval=5.))
+
+    @property
+    def variables(self):
+        return vars(self).values()
+
+    @property
+    def _variables(self):
+        return vars(self)
+
+    @tf.function
+    def __call__(self,X_train,Y_train,kernels_name):
+        params=vars(self)
+        return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
+
+    def viewVar(self,kernels):
+        list_vars = self.variables
+        print("Parameters of  : {}".format(kernels))
+        print("   var name               |               value")
+        for var in list_vars : 
+            print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))
+
+    @tf.function
+    def predict(self,X_train,Y_train,X_s,kernels_name):
+        params= self._variables
+        print(kernels_name)
+        cov = self._get_cov(X_train,X_train,kernels_name,params)
+        cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
+        cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
+        mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss) 
+        return mu,cov
+
+    def _get_cov(self,X,Y,kernel,params):
+        params_name = list(params.keys())
+        cov = 0
+        num = 0
+        for op in kernel :
+            if op[0] == "+":
+                method = KERNELS_FUNCTIONS[op[1:]]
+                par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
+                if not method:
+                    raise NotImplementedError("Method %s not implemented" % op[1:])
+                cov += method(X,Y,[params[p] for p in par])
+                num += KERNELS_LENGTH[op[1:]]
+            elif op[0] == "*":
+                method = KERNELS_FUNCTIONS[op[1:]]
+                par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
+                if not method:
+                    raise NotImplementedError("Method %s not implemented" % op[1:])
+                cov  = tf.math.multiply(cov,method(X,Y,[params[p] for p in par]))
+                num += KERNELS_LENGTH[op[1:]]
+        return cov
+
+        

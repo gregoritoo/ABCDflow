@@ -11,10 +11,10 @@ tf.keras.backend.set_floatx('float32')
 
 PI = m.pi
 
-    
 
-@tf.function
-def Linear(x,y,c,sigmav):
+
+def LIN(x,y,params):
+    c,sigmab,sigmav = params[0],params[1],params[2]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
     y1 = tf.math.subtract(y,c*tf.ones_like(y))
@@ -23,17 +23,18 @@ def Linear(x,y,c,sigmav):
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     w = tf.math.multiply(y2,x2)
-    return sigmav*w
+    return sigmab+sigmav*w
 
-@tf.function
-def WhiteNoise(x,y,sigma):
+
+def WN(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
     return sigma*tf.eye(x.shape[0])
 
 
 
-@tf.function
-def Periodic(x,y1,l,p,sigma):
+
+def PER(x,y1,params):
+    l,p,sigma = params[0],params[1],params[2]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(x)
     multiply_y = tf.constant([1,x.shape[0]])
@@ -45,8 +46,9 @@ def Periodic(x,y1,l,p,sigma):
     w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
-@tf.function
-def exp(x,y1,l,sigma):
+
+def SE(x,y1,params):
+    l,sigma = params[0],params[1]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(x)
     multiply_y = tf.constant([1,x.shape[0]])
