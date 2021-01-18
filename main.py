@@ -15,6 +15,7 @@ import pandas as pd
 tf.keras.backend.set_floatx('float32')
 from itertools import chain
 import itertools
+import pickle 
 
 PI = m.pi
 
@@ -75,7 +76,7 @@ KERNELS_OPS = {
 }
 
 
-def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name):
+def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,verbose=False):
     base_model = model 
     loop = 0
     best = 10e90
@@ -83,12 +84,16 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name):
     while loop < nb_restart :
         try :
             model = base_model
-            for iteration in range(1,nb_iter):
-                val = train_step(model,iteration,X_train,Y_train,kernels_name)
-                sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * log likelihood  is : {:.4f} at epoch : {:.0f} at iteration : {:.0f} / {:.0f} ".format(val[0][0],nb_iter,loop+1,nb_restart))
+            if verbose :
+                for iteration in range(1,nb_iter):
+                    val = train_step(model,iteration,X_train,Y_train,kernels_name)
+                    sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * log likelihood  is : {:.4f} at epoch : {:.0f} at iteration : {:.0f} / {:.0f} ".format(val[0][0],nb_iter,loop+1,nb_restart))
+                    sys.stdout.flush()
+                sys.stdout.write("\n")
                 sys.stdout.flush()
-            sys.stdout.write("\n")
-            sys.stdout.flush()
+            else :
+                for iteration in range(1,nb_iter):
+                    val = train_step(model,iteration,X_train,Y_train,kernels_name)
         except Exception as e :
             print(e)
         if val  < best :
@@ -125,6 +130,60 @@ def search(kernels_name,_kernel_list,init):
                 COMB.append(comb)
     return COMB
 
+
+
+    
+
+def search_step_multipro(combi,q):
+    BEST_MODELS = dict({})
+    try :
+        _kernel_list = list(combi)
+        kernels_name = ''.join(combi)
+
+        if kernels_name[0] != "*" :
+            kernels = _preparekernel(_kernel_list)
+            model=CustomModel(kernels)
+            model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list)
+
+            #model.viewVar(kernels_name)
+            BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
+            BEST_MODELS["model_name"] = kernels_name
+            BEST_MODELS["model_list"] = _kernel_list
+            BEST_MODELS["model"] = model
+            BEST_MODELS["score"] = BIC
+            #mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
+            
+            """mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
+            plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
+            plt.show()"""
+    except Exception as e :
+        print("error with kernel :",kernels_name)
+        print(e)
+    q.put(BEST_MODELS)
+
+
+def search_step(combi,BEST_MODELS,verbose=False):
+    try :
+        _kernel_list = list(combi)
+        kernels_name = ''.join(combi)
+        if kernels_name[0] != "*" :
+            kernels = _preparekernel(_kernel_list)
+            model=CustomModel(kernels)
+            model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,verbose=False)
+            if verbose :
+                print("kernel = ",kernels_name )
+                model.viewVar(kernels_name)
+            BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
+            if BIC < BEST_MODELS["score"]  : 
+                BEST_MODELS["model_name"] = kernels_name
+                BEST_MODELS["model_list"] = _kernel_list
+                BEST_MODELS["model"] = model
+                BEST_MODELS["score"] = BIC
+            #mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
+    except Exception as e :
+        print("error with kernel :",kernels_name)
+        print(e)
+    return BEST_MODELS
     
 
 
@@ -184,37 +243,52 @@ if __name__ =="__main__" :
     COMB = search(kernels_name,_kernel_list,True)
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
 
+
+    """
+    q = mp.Queue()
+    threads_list = list()
+    lens = len(COMB)
     for combi in COMB :
-        try :
-            _kernel_list = list(combi)
-            kernels_name = ''.join(combi)
+        p = mp.Process(target=search_step, args=(combi,q))
+        p.start() 
+        threads_list.append(p)
 
-            if kernels_name[0] != "*" :
-                kernels = _preparekernel(_kernel_list)
-                model=CustomModel(kernels)
-                model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list)
+    for t in threads_list:
+        t.join()
+    models = [q.get() for _ in range(lens)]
+    print(models)
+    """
+    nb_iter = len(COMB)
+    iteration=0
+    for combi in COMB :
+        iteration+=1
+        BEST_MODELS = search_step(combi,BEST_MODELS,False)
+        sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * model is {} ".format(combi))
+        sys.stdout.flush()
+    model=BEST_MODELS["model"]
+    model.viewVar(kernels_name)
+    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
+    mu,cov = model.predict(X_train,Y_train,X_s,BEST_MODELS["model_list"])  
+    
+    mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
+    plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
+    plt.show()
 
-                #model.viewVar(kernels_name)
-                BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-                print("model BIC is {}".format(BIC))
-                print(viewVar)
-                if  BIC < BEST_MODELS["score"] :
-                    BEST_MODELS["model_name"] = kernels_name
-                    BEST_MODELS["model_list"] = _kernel_list
-                    BEST_MODELS["model"] = model
-                    BEST_MODELS["score"] = BIC
 
-
-                #mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
-                
-                """mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
-                plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
-                plt.show()"""
-        except Exception as e :
-            print("error with kernel :",kernels_name)
-            print(e)
+    
         
-    """nb_restart = 25
+    with open('best_model', 'wb') as f:
+        pickle.dump(model,f)
+    
+    with open('_kernel_list', 'wb') as f:
+        pickle.dump(BEST_MODELS["model_list"],f)
+
+    
+
+    """
+    with open('best_model') as f:
+        y = pickle.load(f)
+    nb_restart = 25
     nb_iter = 10
 
     kernels_name,_kernel_list = "LIN",["+LIN"]
