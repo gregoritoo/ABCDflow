@@ -144,18 +144,11 @@ def search_step_multipro(combi,q):
             kernels = _preparekernel(_kernel_list)
             model=CustomModel(kernels)
             model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list)
-
-            #model.viewVar(kernels_name)
             BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
             BEST_MODELS["model_name"] = kernels_name
             BEST_MODELS["model_list"] = _kernel_list
             BEST_MODELS["model"] = model
             BEST_MODELS["score"] = BIC
-            #mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
-            
-            """mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
-            plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
-            plt.show()"""
     except Exception as e :
         print("error with kernel :",kernels_name)
         print(e)
@@ -179,7 +172,7 @@ def search_step(combi,BEST_MODELS,verbose=False):
                 BEST_MODELS["model_list"] = _kernel_list
                 BEST_MODELS["model"] = model
                 BEST_MODELS["score"] = BIC
-            #mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
+
     except Exception as e :
         print("error with kernel :",kernels_name)
         print(e)
@@ -187,6 +180,27 @@ def search_step(combi,BEST_MODELS,verbose=False):
     
 
 
+def analyse(nb_restart,nb_iter):
+    nb_restart = nb_restart
+    nb_iter = nb_iter
+
+    kernels_name,_kernel_list = "",[]
+    COMB = search(kernels_name,_kernel_list,True)
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+
+
+    COMB = COMB[:15]
+    nb_iter = len(COMB)
+    iteration=0
+    for combi in COMB :
+        iteration+=1
+        BEST_MODELS = search_step(combi,BEST_MODELS,False)
+        sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * model is {} ".format(combi))
+        sys.stdout.flush()
+    model=BEST_MODELS["model"]
+    model.viewVar(kernels_name)
+    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
+    return model,BEST_MODELS["model_list"]
 
 
 
@@ -206,24 +220,8 @@ if __name__ =="__main__" :
     Y_train = tf.Variable(np.sin(X_train.numpy().reshape(-1, 1)),dtype=tf.float32)
 
     X_s = tf.Variable(np.arange(-2, 28,30).reshape(-1, 1),dtype=tf.float32)
- 
-    nb_restart = 15
-    nb_iter = 10
-    model = WhiteNoiseRegressor()
-    model = train(model,nb_iter,nb_restart)
-    model.viewVar()
 
-    k = GPy.kern.White(input_dim=1)       
-    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
-    m.optimize_restarts(30)
-    print(m)
-    m.plot()
-    plt.show()
-    mu,cov = model.predict(X_train,Y_train,X_s)    
-    mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=1000)
-    plot_gs(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
-    plt.show()
-"""
+    """
 
     Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
     X = np.arange(len(Y)).reshape(-1, 1)
@@ -235,80 +233,35 @@ if __name__ =="__main__" :
     
     X_s = tf.Variable(X_s_num,dtype=tf.float32)
     
-
     nb_restart = 15
-    nb_iter = 4
-
-    kernels_name,_kernel_list = "",[]
-    COMB = search(kernels_name,_kernel_list,True)
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
-
-
-    """
-    q = mp.Queue()
-    threads_list = list()
-    lens = len(COMB)
-    for combi in COMB :
-        p = mp.Process(target=search_step, args=(combi,q))
-        p.start() 
-        threads_list.append(p)
-
-    for t in threads_list:
-        t.join()
-    models = [q.get() for _ in range(lens)]
-    print(models)
-    """
-    nb_iter = len(COMB)
-    iteration=0
-    for combi in COMB :
-        iteration+=1
-        BEST_MODELS = search_step(combi,BEST_MODELS,False)
-        sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * model is {} ".format(combi))
-        sys.stdout.flush()
-    model=BEST_MODELS["model"]
-    model.viewVar(kernels_name)
-    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
-    mu,cov = model.predict(X_train,Y_train,X_s,BEST_MODELS["model_list"])  
-    
-    mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
-    plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
-    plt.show()
-
-
-    
-        
-    with open('best_model', 'wb') as f:
-        pickle.dump(model,f)
-    
-    with open('_kernel_list', 'wb') as f:
-        pickle.dump(BEST_MODELS["model_list"],f)
-
-    
-
-    """
-    with open('best_model') as f:
-        y = pickle.load(f)
-    nb_restart = 25
     nb_iter = 10
 
-    kernels_name,_kernel_list = "LIN",["+LIN"]
+    model,kernels = analyse(nb_restart,nb_iter)
+    mu,cov = model.predict(X_train,Y_train,X_s,kernels)
+    model.plot(mu,cov,X_train,Y_train,X_s)
+    plt.show()
 
-    #kernels_name,_kernel_list = _mulkernel(kernels_name,_kernel_list,"LIN")
-    #kernels_name,_kernel_list =_addkernel(kernels_name,_kernel_list,"LIN")
-    #kernels_name,_kernel_list =_addkernel(kernels_name,_kernel_list,"WN")
-    #kernels_name,_kernel_list =_mulkernel(kernels_name,_kernel_list,"SE")
-    kernels = _preparekernel(_kernel_list)
-    model=CustomModel(kernels)
-    model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list)
-
-    model.viewVar(kernels_name)
-    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
-
-    mu,cov = model.predict(X_train,Y_train,X_s,_kernel_list)  
+        
+    with open('best_model', 'wb') as f :
+        pickle.dump(model,f)
     
-    mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
-    plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
+    with open('kernels', 'wb') as f :
+        pickle.dump(kernels,f)
+
+    
+
+    """with open('best_model','rb') as f:
+        model = pickle.load(f)
+    
+    with open('kernels', 'rb') as f:
+        kernels = pickle.load(f)
+
+    model.viewVar(''.join(kernels))
+    mu,cov = model.predict(X_train,Y_train,X_s,kernels)
+    model.plot(mu,cov,X_train,Y_train,X_s)
     plt.show()"""
+
+
 
     
 
