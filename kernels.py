@@ -62,6 +62,3 @@ def SE(x,y1,params):
     return sigma*tf.math.exp(tf.math.square(tf.math.subtract(y2,x2))*const_1)
 
 
-
-
-

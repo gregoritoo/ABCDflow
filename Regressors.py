@@ -186,7 +186,6 @@ class WhiteNoiseRegressor(object) :
 
 
 class CustomModel(object):
-
     def __init__(self,params):
         for attr in params.keys() :
             pars = params[attr]
@@ -195,7 +194,6 @@ class CustomModel(object):
                         dtype=tf.float32,
                         shape=(1,),
                         initializer=tf.random_uniform_initializer(minval=1., maxval=1.))
-
     @property
     def variables(self):
         return vars(self).values()

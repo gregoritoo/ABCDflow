@@ -103,21 +103,6 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,verbose=False):
     return best_model
 
 
-"""def search(kernels_name,_kernel_list,init):
-    kerns = tuple(KERNELS.keys())
-    for kern in kerns :
-        op = np.random.randint(0,1)
-        if init : op = 1
-        if op == 0 :
-            kernels_name,_kernel_list = _mulkernel(kernels_name,_kernel_list,kern)
-        elif op == 1 :
-            kernels_name,_kernel_list = _addkernel(kernels_name,_kernel_list,kern)
-        else :
-            raise EnvironmentError("Invalid values")
-        if not init :  G.add_edges_from(tuple(_kernel_list))
-        else : G.add_node(kern)
-    print(list(G.nodes))
-    return  kernels_name,_kernel_list"""
 
 def search(kernels_name,_kernel_list,init):
     kerns = tuple((KERNELS_OPS.keys()))
@@ -131,13 +116,22 @@ def search(kernels_name,_kernel_list,init):
     return COMB
 
 
+def _prune(tempbest,rest):
+    print("Prunning ...")
+    new_rest = []
+    for _element in rest :
+        for _best in tempbest :
+            _element = list(_element)
+            if _best == _element[:len((_best))] and _element not in new_rest :
+                new_rest.append(_element)
+    return new_rest
 
     
 
 def search_step_multipro(combi,q):
     BEST_MODELS = dict({})
     try :
-        _kernel_list = list(combi)
+        _kernel_list = combi
         kernels_name = ''.join(combi)
 
         if kernels_name[0] != "*" :
@@ -155,7 +149,9 @@ def search_step_multipro(combi,q):
     q.put(BEST_MODELS)
 
 
-def search_step(combi,BEST_MODELS,verbose=False):
+
+def search_step(combi,BEST_MODELS,TEMP_BEST_MODELS,nb_by_step,verbose=False):
+    j=0
     try :
         _kernel_list = list(combi)
         kernels_name = ''.join(combi)
@@ -164,37 +160,37 @@ def search_step(combi,BEST_MODELS,verbose=False):
             model=CustomModel(kernels)
             model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,verbose=False)
             if verbose :
-                print("kernel = ",kernels_name )
                 model.viewVar(kernels_name)
             BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
             if BIC < BEST_MODELS["score"]  : 
                 BEST_MODELS["model_name"] = kernels_name
                 BEST_MODELS["model_list"] = _kernel_list
                 BEST_MODELS["model"] = model
-                BEST_MODELS["score"] = BIC
-
-    except Exception as e :
+                BEST_MODELS["score"] = BIC 
+            TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]                                  ################ a supprimer pour corriger , il faut consr=erver nom et score puis découper en utilisant prune
+    except Exception as e:
         print("error with kernel :",kernels_name)
         print(e)
-    return BEST_MODELS
+    return BEST_MODELS,TEMP_BEST_MODELS
     
 
 
-def analyse(nb_restart,nb_iter):
+def analyse(nb_restart,nb_iter,nb_by_step,verbose=False,COMB):
     nb_restart = nb_restart
     nb_iter = nb_iter
-
     kernels_name,_kernel_list = "",[]
-    COMB = search(kernels_name,_kernel_list,True)
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
-
-
-    COMB = COMB[:15]
+    TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     nb_iter = len(COMB)
     iteration=0
     for combi in COMB :
         iteration+=1
-        BEST_MODELS = search_step(combi,BEST_MODELS,False)
+        if iteration % 50 == 0 :
+            TEMP_BEST_MODELS = TEMP_BEST_MODELS[: nb_by_step]
+            COMB = _prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
+            print("Model to try :",COMB)
+        BEST_MODELS,TEMP_BEST_MODELS = search_step(combi,BEST_MODELS,TEMP_BEST_MODELS,nb_by_step,verbose)
+        TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(by=['score'],ascending=True)
         sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * model is {} ".format(combi))
         sys.stdout.flush()
     model=BEST_MODELS["model"]
@@ -202,13 +198,17 @@ def analyse(nb_restart,nb_iter):
     print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
     return model,BEST_MODELS["model_list"]
 
-
+def parralelize(nb_workers,COMB):
+    for i in range(nb_workers) :
+        COMB_ = COMB[int(i*len(COMB)):int(i+1*len(COMB))]
+        name = "search/model_list_"+str(i)
+        with open(name, 'wb') as f :
+            pickle.dump(COMB_,f)
 
 
 if __name__ =="__main__" :
     """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
     X = np.arange(len(Y)).reshape(-1, 1)
-
     X_s_num = np.arange(0, 160, 1).reshape(-1, 1)
     X_train = tf.Variable(X,dtype=tf.float32)
     Y_train = tf.Variable(Y,dtype=tf.float32)
@@ -218,9 +218,7 @@ if __name__ =="__main__" :
 
     """X_train = tf.Variable(np.array(np.linspace(0,30,30)).reshape(-1, 1),dtype=tf.float32)
     Y_train = tf.Variable(np.sin(X_train.numpy().reshape(-1, 1)),dtype=tf.float32)
-
     X_s = tf.Variable(np.arange(-2, 28,30).reshape(-1, 1),dtype=tf.float32)
-
     """
 
     Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
@@ -235,8 +233,11 @@ if __name__ =="__main__" :
     
     nb_restart = 15
     nb_iter = 10
-
-    model,kernels = analyse(nb_restart,nb_iter)
+    nb_by_step = 6
+    COMB = search("",[],True)
+    with open('models_search', 'wb') as f :
+        pickle.dump(model,f)
+    model,kernels = analyse(nb_restart,nb_iter,nb_by_step)
     mu,cov = model.predict(X_train,Y_train,X_s,kernels)
     model.plot(mu,cov,X_train,Y_train,X_s)
     plt.show()
@@ -249,19 +250,3 @@ if __name__ =="__main__" :
         pickle.dump(kernels,f)
 
     
-
-    """with open('best_model','rb') as f:
-        model = pickle.load(f)
-    
-    with open('kernels', 'rb') as f:
-        kernels = pickle.load(f)
-
-    model.viewVar(''.join(kernels))
-    mu,cov = model.predict(X_train,Y_train,X_s,kernels)
-    model.plot(mu,cov,X_train,Y_train,X_s)
-    plt.show()"""
-
-
-
-    
-

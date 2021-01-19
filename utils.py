@@ -19,6 +19,7 @@ KERNELS_LENGTH = {
     "LIN" : 1,
     "WN" : 1,
     "SE" : 2,
+    "RQ" : {},
     "PER" :3,
 }
 
