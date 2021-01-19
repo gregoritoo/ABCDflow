@@ -185,7 +185,6 @@ def analyse(nb_restart,nb_iter,nb_by_step,i,verbose=False):
     kernels_name,_kernel_list = "",[]
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
-    nb_iter = len(COMB)
     iteration=0
     for combi in COMB :
         iteration+=1

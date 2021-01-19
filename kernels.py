@@ -16,14 +16,16 @@ PI = m.pi
 def LIN(x,y,params):
     c = params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
-    x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
-    y1 = tf.math.subtract(y,c*tf.ones_like(y))
+    """x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
+    y1 = tf.math.subtract(y,c*tf.ones_like(y))"""
+    x1 = tf.transpose(x)
+    y1 = y 
     multiply_y = tf.constant([1,x.shape[0]])
     y2 = tf.transpose(tf.tile(y1, multiply_y))
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     w = tf.math.multiply(y2,x2) 
-    return w
+    return c*w
 
 
 def WN(x,y,sigma):
