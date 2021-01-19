@@ -16,8 +16,7 @@ tf.keras.backend.set_floatx('float32')
 from itertools import chain
 import itertools
 import pickle 
-import os 
-import subprocess
+
 import sys 
 PI = m.pi
 
@@ -203,53 +202,46 @@ def analyse(nb_restart,nb_iter,nb_by_step,i,verbose=False):
     print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
     return model,BEST_MODELS["model_list"]
 
-def parralelize(nb_workers,nb_restart,nb_iter,nb_by_step):
-    COMB = search("",[],True)
-    poll_list=[]
-    for i in range(nb_workers) :
-        COMB_ = COMB[int(i*len(COMB)/nb_workers):int(i+1*len(COMB)/nb_workers)]
-        name = "search/model_list_"+str(i)
-        with open(name, 'wb') as f :
-            pickle.dump(COMB_,f)
-    for i in range(nb_workers) :
-        sys.argv = [str(i)]
-        filename = "splitted_train.py"
-        with stdoutIO() as s:
-            exec(compile(open(filename, "rb").read(), filename, 'exec'),dict({"num":str(i)}))
-            print("out:", s.getvalue())
-        #p = subprocess.Popen(["python", "splitted_train.py",str(i)])
-        #poll_list.append(p)
-    while True :   
-        if all(process != None for process in poll_list) : break
-    return 1
-import sys
-from io import StringIO
-import contextlib
 
-@contextlib.contextmanager
-def stdoutIO(stdout=None):
-    old = sys.stdout
-    if stdout is None:
-        stdout = StringIO()
-    sys.stdout = stdout
-    yield stdout
-    sys.stdout = old
 
 
 if __name__ =="__main__" :
-    
 
+    """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
+    X = np.arange(len(Y)).reshape(-1, 1)
+    X_s_num = np.arange(0, 160, 1).reshape(-1, 1)
+    X_train = tf.Variable(X,dtype=tf.float32)
+    Y_train = tf.Variable(Y,dtype=tf.float32)
     
+    X_s = tf.Variable(X_s_num,dtype=tf.float32)
+    """
+
+    """X_train = tf.Variable(np.array(np.linspace(0,30,30)).reshape(-1, 1),dtype=tf.float32)
+    Y_train = tf.Variable(np.sin(X_train.numpy().reshape(-1, 1)),dtype=tf.float32)
+    X_s = tf.Variable(np.arange(-2, 28,30).reshape(-1, 1),dtype=tf.float32)
+    """
+
+    Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
+    X = np.arange(len(Y)).reshape(-1, 1)
+
+    X_s_num = np.arange(0, 179, 1).reshape(-1, 1)
+
+    X_train = tf.Variable(X,dtype=tf.float32)
+    Y_train = tf.Variable(Y,dtype=tf.float32)
+    
+    X_s = tf.Variable(X_s_num,dtype=tf.float32)
+
     nb_restart = 15
     nb_iter = 10
     nb_by_step = 6
+    num =sys.argv[1]
+    print("Workers number {} awake".format(num))
 
-    nb_workers = 2 
-    parralelize(nb_workers,nb_restart,nb_iter,nb_by_step)
-    
-    
 
-        
-    
-
-    
+    model,kernels = analyse(nb_restart,nb_iter,nb_by_step,num)
+    name = 'best_model' + str(num)
+    name_kernel = kernels + str(num)
+    with open(name, 'wb') as f :
+        pickle.dump(model,f)
+    with open(name_kernel, 'wb') as f :
+        pickle.dump(kernels,f)
