@@ -36,22 +36,19 @@ class PeriodicRegressor(object):
                     dtype=tf.float32,
                     shape=(1,),
                     initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
-        self._noise = tf.compat.v1.get_variable('noise',
-                    dtype=tf.float32,
-                    shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+
 
     @tf.function
     def __call__(self,X_train,Y_train):
-        params={"l":self._l,"p":self._p,"sigma":self._sigma,"noise":self._noise}
-        return log_cholesky_l(X_train,Y_train,params,kernel="Periodic")
+        params={"l":self._l,"p":self._p,"sigma":self._sigma}
+        return log_cholesky_l(X_train,Y_train,params,kernel="PER")
 
 
     @tf.function
     def predict(self,X_train,Y_train,X_s):
-        cov = Periodic(X_train,X_train,l=self._l,p=self._p,sigma=self._sigma)
-        cov_ss =  Periodic(X_s,X_s,l=self._l,p=self._p,sigma=self._sigma)
-        cov_s  = Periodic(X_train,X_s,l=self._l,p=self._p,sigma=self._sigma)
+        cov = PER(X_train,X_train,l=self._l,p=self._p,sigma=self._sigma)
+        cov_ss =  PER(X_s,X_s,l=self._l,p=self._p,sigma=self._sigma)
+        cov_s  = PER(X_train,X_s,l=self._l,p=self._p,sigma=self._sigma)
         mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
 
@@ -70,34 +67,25 @@ class PeriodicRegressor(object):
 class LinearRegressor(object) :
 
     def __init__(self) :
-        self._c = tf.compat.v1.get_variable('l',
+        self._c = tf.compat.v1.get_variable('c',
                     dtype=tf.float32,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
+                    initializer=tf.random_uniform_initializer(minval=1., maxval=5.))
                    
-        self._sigmab = tf.compat.v1.get_variable('sigmab',
-                    dtype=tf.float32,
-                    shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
-        self._sigmav = tf.compat.v1.get_variable('sigmav',
-                    dtype=tf.float32,
-                    shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=0.01, maxval=1.))
     @tf.function
     def __call__(self,X_train,Y_train):
-        
-        params={"c":self._c,"sigmab":self._sigmab,"sigmav":self._sigmav}
-        return log_cholesky_l(X_train,Y_train,params,kernel="Linear")
+        params={"c":self._c}
+        return log_cholesky_l(X_train,Y_train,params,kernel="LIN")
 
     @property
     def variables(self):
-        return self._c,self._sigmab,self._sigmav
+        return self._c
 
-    @tf.function
+
     def predict(self,X_train,Y_train,X_s):
-        cov = Linear(X_train,X_train,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
-        cov_ss =  Linear(X_s,X_s,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
-        cov_s  = Linear(X_train,X_s,c=self._c,sigmab=self._sigmab,sigmav=self._sigmav)
+        cov = kernels.LIN(X_train,X_train,c=self._c)
+        cov_ss =  kernels.LIN(X_s,X_s,c=self._c)
+        cov_s  = kernels.LIN(X_train,X_s,c=self._c)
         mu,cov = compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
 
@@ -164,7 +152,7 @@ class WhiteNoiseRegressor(object) :
         params={"sigma":self._sigma}
         return log_cholesky_l(X_train,Y_train,params,kernel="WN")
 
-    @tf.function
+
     def predict(self,X_train,Y_train,X_s):
         cov = WhiteNoise(X_train,X_train,sigma=self._sigma)
         cov_ss =  WhiteNoise(X_s,X_s,sigma=self._sigma)
@@ -209,7 +197,7 @@ class CustomModel(object):
 
     def viewVar(self,kernels):
         list_vars = self.variables
-        print("Parameters of  : {}".format(kernels))
+        print("\n Parameters of  : {}".format(kernels))
         print("   var name               |               value")
         for var in list_vars : 
             print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))

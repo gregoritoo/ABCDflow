@@ -19,7 +19,6 @@ KERNELS_LENGTH = {
     "LIN" : 1,
     "WN" : 1,
     "SE" : 2,
-    "RQ" : {},
     "PER" :3,
 }
 
@@ -72,9 +71,9 @@ def compute_posterior(y,cov,cov_s,cov_ss):
 
 @tf.function
 def log_l(X,Y,params,kernel):
-    if kernel=="Periodic" :
+    if kernel=="PER" :
         cov = Periodic(X,Y,l=params["l"],p=params["p"],sigma=params["sigma"])+1*tf.eye(X.shape[0])
-    elif kernel == "Linear" :
+    elif kernel == "LIN" :
         cov = Linear(X,Y,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+1*tf.eye(X.shape[0])
     elif kernel =="SE":
         cov = exp(X,Y,l=params["l"],sigma=params["sigma"])+ 0.001*tf.eye(X.shape[0])
@@ -82,21 +81,27 @@ def log_l(X,Y,params,kernel):
     
     return -loss
 
-@tf.function
+
 def log_cholesky_l(X,Y,params,kernel):
-    if kernel=="Periodic" :
-        cov = Periodic(X,X,l=params["l"],p=params["p"],sigma=params["sigma"])+1*tf.eye(X.shape[0])
-    elif kernel == "Linear" :
-        cov = Linear(X,X,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+ tf.eye(X.shape[0])
+    params_name = list(params.keys())
+    par =params_name[0:0+KERNELS_LENGTH[kernel]]
+    params = [params[p] for p in par]
+    if kernel=="PER" :
+        cov = kernels.PER(X,X,params)+ tf.eye(X.shape[0])
+    elif kernel == "LIN" :
+        cov = kernels.LIN(X,X,params)+ tf.eye(X.shape[0])
     elif kernel =="SE":
-        cov = exp(X,X,l=params["l"],sigma=params["sigma"]) + tf.eye(X.shape[0])
+        cov = kernels.SE(X,X,params) + tf.eye(X.shape[0])
     elif kernel == "WN" :
-       cov = WhiteNoise(X,X,sigma=params["sigma"]) + tf.eye(X.shape[0]) 
+       cov = kernels.WN(X,X,params) + tf.eye(X.shape[0]) 
     _L = tf.linalg.cholesky(cov)
     _temp = tf.linalg.solve(_L, Y)
     alpha = tf.linalg.solve(tf.transpose(_L), _temp)
     loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])
     return loss
+
+
+
 
 
 
@@ -137,3 +142,18 @@ def train_step(model,iteration,X_train,Y_train,kernels_name):
     except Exception as e :
         OPTIMIZER.apply_gradients(gradient,model.variables)
     return val
+
+
+def train_step_single(model,iteration,X_train,Y_train):
+    with tf.GradientTape(persistent=False) as tape :
+        tape.watch(model.variables)
+        val = model(X_train,Y_train)  
+    gradient = tape.gradient(val,model.variables)
+    try :
+        OPTIMIZER.apply_gradients(zip(gradient, model.variables))
+    except Exception as e :
+        OPTIMIZER.apply_gradients(gradient,model.variables)
+    return val
+
+
+

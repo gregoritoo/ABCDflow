@@ -1,5 +1,8 @@
 import numpy as np 
 import tensorflow as tf 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+tf.keras.backend.set_floatx('float32')
 import matplotlib.pyplot as plt 
 import math as m
 import seaborn as sn
@@ -15,9 +18,7 @@ import os
 import multiprocessing
 from multiprocessing import Pool
 import sys 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.keras.backend.set_floatx('float32')
+
 
 PI = m.pi
 
@@ -135,17 +136,16 @@ def _prune(tempbest,rest):
 
 
 
-def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose):
+def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,unique=False):
     j=0
     try :
-        _kernel_list = list(combi)
+        if not unique : _kernel_list = list(combi)
+        else : _kernel_list = list([combi])
         kernels_name = ''.join(combi)
         if kernels_name[0] != "*" :
             kernels = _preparekernel(_kernel_list)
             model=CustomModel(kernels)
             model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,verbose)
-            if verbose :
-                model.viewVar(kernels_name)
             BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
             if BIC < BEST_MODELS["score"]  : 
                 BEST_MODELS["model_name"] = kernels_name
@@ -197,6 +197,24 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,verbose):
     return model,BEST_MODELS["model_list"]
 
 
+def single_model(X_train,Y_train,X_s,kernel,nb_restart=14,nb_iter=5,verbose=False):
+    X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
+    COMB =[ ("+"+kernel),]
+    iteration = 0
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e400}
+    TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
+    full_length= 1
+    for combi in COMB :
+        iteration+=1
+        BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=combi,BEST_MODELS=BEST_MODELS,TEMP_BEST_MODELS=TEMP_BEST_MODELS,nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,nb_by_step=None,prune=False,unique=True)
+        sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
+        sys.stdout.flush()
+    model=BEST_MODELS["model"]
+    model.viewVar(kernel)
+    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,kernel)))
+    return model,["+"+kernel]
+
+
 
 
 def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
@@ -237,16 +255,19 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
         parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step)
     return model,kernels
 
-    
 
 
 
 if __name__ =="__main__" :
     Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
     X = np.arange(len(Y)).reshape(-1, 1)
-    X_s_num = np.arange(0, 179, 1).reshape(-1, 1)
-    model,kernels = launch_analysis(X,Y,X_s_num)
-    
+    X_s = np.arange(0, 179, 1).reshape(-1, 1)
+    X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
+    #model,kernels = launch_analysis(X,Y,X_s)
+    model,kernel = single_model(X,Y,X_s,"LIN",True)
+    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
+    model.plot(mu,cov,X_train,Y_train,X_s)
+    plt.show()
     
 
     

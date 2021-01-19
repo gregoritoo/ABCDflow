@@ -7,6 +7,8 @@ import math as m
 import seaborn as sn
 import GPy
 import sys 
+import os 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 
 PI = m.pi
