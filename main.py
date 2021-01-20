@@ -162,7 +162,8 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,verbose=True,mod
                 if verbose :
                     for iteration in range(1,nb_iter):
                         val = train_step(model,iteration,X_train,Y_train,kernels_name)
-                        sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."*int((nb_iter-iteration)/nb_iter*50)+"|"+" * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} ".format(val[0][0],nb_iter,loop+1,nb_restart))
+                        sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."* int((nb_iter-iteration)/nb_iter*50)+"|" \
+                            +" * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} ".format(val[0][0],nb_iter,loop+1,nb_restart))
                         sys.stdout.flush()
                     sys.stdout.write("\n")
                     sys.stdout.flush()
@@ -210,7 +211,8 @@ def _prune(tempbest,rest):
 
 
 
-def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,unique=False,single=False):
+def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
+                                        nb_by_step,prune,verbose,unique=False,single=False):
     j=0
     try :
         if not unique : _kernel_list = list(combi)
@@ -222,14 +224,12 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
             model=CustomModel(kernels)
             model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,verbose)
             BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-            print("BIC",BIC)
-            print("BEST MODELS",BEST_MODELS["score"] )
             if BIC < BEST_MODELS["score"]  : 
                 BEST_MODELS["model_name"] = kernels_name
                 BEST_MODELS["model_list"] = _kernel_list
                 BEST_MODELS["model"] = model
                 BEST_MODELS["score"] = BIC 
-            TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]                                  ################ a supprimer pour corriger , il faut consr=erver nom et score puis découper en utilisant prune
+            TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]                           
     except Exception as e:
         print("error with kernel :",kernels_name)
         print(e)
@@ -241,7 +241,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
 
 def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose):
     if i == -1 :
-        COMB = search("",[],True)[:100]
+        COMB = search("",[],True)
     else :
         name = "search/model_list_"+str(i)
         with open(name, 'rb') as f :
@@ -265,7 +265,8 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS[: nb_by_step]
                 COMB = _prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
                 #print("Model to try :",COMB)
-            BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose)
+            BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
+                                                                nb_restart,nb_iter,nb_by_step,prune,verbose)
             TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(by=['score'],ascending=True)[:nb_by_step]
             sys.stdout.write("\r"+"="*int(j/full_length*50)+">"+"."*int((full_length-j)/full_length*50)+"|"+" * model is {} ".format(combi))
             sys.stdout.flush()
@@ -278,7 +279,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
         sys.stdout.flush()
     model=BEST_MODELS["model"]
     model.viewVar(BEST_MODELS["model_list"])
-    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,_kernel_list)))
+    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
     return model,BEST_MODELS["model_list"]
 
 
@@ -289,7 +290,8 @@ def single_model(X_train,Y_train,X_s,kernel,nb_restart=150,nb_iter=50,verbose=Fa
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     full_length= 1
     iteration+=1
-    BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS,TEMP_BEST_MODELS=TEMP_BEST_MODELS,nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,nb_by_step=None,prune=False,unique=True,single=True)
+    BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS, \
+        TEMP_BEST_MODELS=TEMP_BEST_MODELS,nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,nb_by_step=None,prune=False,unique=True,single=True)
     sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(kernel))
     sys.stdout.flush()
     model=BEST_MODELS["model"]
@@ -315,7 +317,8 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
         pool.starmap(analyse,params)
 
 
-def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False):
+def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False, \
+                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False):
     if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")  
     if nb_by_step > loop_size is None : raise ValueError("Loop size must be superior to nb_by_step")      
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
@@ -354,12 +357,12 @@ if __name__ =="__main__" :
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
     model,kernels = launch_analysis(X,Y,X_s)
     """
-    Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
-    X = np.arange(len(Y)).reshape(-1, 1)
-    X_s = np.arange(-5, len(Y)+15, 1).reshape(-1, 1)
+    X = np.linspace(0,100,100).reshape(-1, 1)
+    Y = 3*(np.sin(X)).reshape(-1, 1)
+    X_s = np.arange(-30, 130, 1).reshape(-1, 1)
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
-    #model,kernel = single_model(X,Y,X_s,['+PER',"+LIN"],nb_restart=15,nb_iter=10,verbose=False)
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,nb_by_step=10)
+    model,kernel = single_model(X,Y,X_s,['+PER'],nb_restart=15,nb_iter=10,verbose=False)
+    #model,kernel = launch_analysis(X,Y,X_s,prune=True,nb_by_step=10)
     mu,cov = model.predict(X_train,Y_train,X_s,kernel)
     model.plot(mu,cov,X_train,Y_train,X_s,kernel)
     plt.show()

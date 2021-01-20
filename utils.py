@@ -13,7 +13,7 @@ import pandas as pd
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
-OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.01)
+OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.0104)
 
 KERNELS_LENGTH = {
     "LIN" : 1,
