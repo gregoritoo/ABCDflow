@@ -13,7 +13,7 @@ tf.keras.backend.set_floatx('float32')
 
 PI = m.pi
 
-@tf.function
+
 def LIN(x,y,params):
     c = params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
@@ -28,7 +28,7 @@ def LIN(x,y,params):
     w = tf.math.multiply(y2,x2) 
     return c*w
 
-@tf.function
+
 def WN(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(x)
@@ -38,7 +38,7 @@ def WN(x,y,sigma):
 
 
 
-@tf.function
+
 def PER(x,y1,params):
     l,p,sigma = params[0],params[1],params[2]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same shapes"
@@ -52,7 +52,6 @@ def PER(x,y1,params):
     w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
-@tf.function
 def SE(x,y1,params):
     l,sigma = params[0],params[1]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same shapes"
