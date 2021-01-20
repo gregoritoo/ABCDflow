@@ -13,7 +13,7 @@ import pandas as pd
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
-OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.0104)
+OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
 
 KERNELS_LENGTH = {
     "LIN" : 1,
@@ -44,17 +44,25 @@ def make_df(X,stdp,stdi):
     stdi = np.array(stdi).reshape(-1)
     df = pd.DataFrame({"x":X, "y":Y,"stdp":stdp,"stdi":stdi},index=Y)
     return df 
-
+    
 def plot_gs_pretty(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
+    try :
+        true_data,X_train,X_s = true_data.numpy(),X_train.numpy(),X_s.numpy()
+        mean,stdp,stdi =  mean.numpy(),stdp.numpy(), stdi.numpy()
+    except Exception as e:
+        pass
+    true_data,X_train,X_s =  true_data.reshape(-1),X_train.reshape(-1),X_s.reshape(-1)
+    mean,stdp,stdi = mean.reshape(-1),stdp.reshape(-1),stdi.reshape(-1).reshape(-1) 
     plt.style.use('seaborn')
     plt.plot(X_s,mean,color="green",label="Predicted values")
-    plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
+    plt.fill_between(X_s,stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
     plt.plot(X_train,true_data,color="red",label="True data")
     plt.legend()    
     plt.show()
 
 def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
     plt.figure(figsize=(32,16), dpi=100)
+    print(X_s)
     plt.plot(X_s,mean,color="green",label="Predicted values")
     plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=color, alpha=0.2,label="Conf I")
     plt.plot(X_train,true_data,color="red",label="True data")

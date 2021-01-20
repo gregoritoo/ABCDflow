@@ -83,6 +83,9 @@ class LinearRegressor(object) :
 
 
     def predict(self,X_train,Y_train,X_s):
+        X_train = tf.cast(X_train,dtype=tf.float32)
+        Y_train = tf.cast(Y_train,dtype=tf.float32)
+        X_s = tf.cast(X_s,dtype=tf.float32)
         cov = kernels.LIN(X_train,X_train,c=self._c)
         cov_ss =  kernels.LIN(X_s,X_s,c=self._c)
         cov_s  = kernels.LIN(X_train,X_s,c=self._c)
@@ -214,6 +217,9 @@ class CustomModel(object):
    
     def predict(self,X_train,Y_train,X_s,kernels_name):
         params= self._variables
+        X_train = tf.Variable(X_train,dtype=tf.float32)
+        Y_train = tf.Variable(Y_train,dtype=tf.float32)
+        X_s = tf.Variable(X_s,dtype=tf.float32)
         cov = self._get_cov(X_train,X_train,kernels_name,params)
         cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
@@ -250,9 +256,13 @@ class CustomModel(object):
         return k*tf.math.log(n) + 2*ll
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
+        try :
+            Y_train,X_train,X_s = Y_train,X_train,X_s
+        except Exception as e :
+            print(e)
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
         if kernel_name is not None : plt.title("kernel :"+''.join(kernel_name)[1:])
-        plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
+        plot_gs_pretty(Y_train,np.array(mean),X_train,X_s,np.array(stdp),np.array(stdi))
         plt.show()
 
         

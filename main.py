@@ -20,7 +20,9 @@ import tensorflow_probability as tfp
 import contextlib
 import functools
 import time
-
+import bocd
+import ruptures as rpt
+from pyinform.blockentropy import block_entropy
 
 
 PI = m.pi
@@ -318,25 +320,32 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
 
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False, \
-                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False):
-    if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")  
-    if nb_by_step > loop_size is None : raise ValueError("Loop size must be superior to nb_by_step")      
+                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=True):
+    if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")
+    if nb_by_step is  not None and nb_by_step > loop_size : raise ValueError("Loop size must be superior to nb_by_step")   
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
+    if reduce_data :
+            mean, var = tf.nn.moments(X_train,axes=[0])
+            X_train = (X_train - mean) / var
+            mean, var = tf.nn.moments(Y_train,axes=[0])
+            Y_train = (Y_train - mean) / var
+            mean, var = tf.nn.moments(X_s,axes=[0])
+            X_s = (X_s - mean) / var
     t0 = time.time()
     if not experimental_multiprocessing :
         i=-1
         model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose)
-        name,name_kernel = 'best_model',kernels
+        name,name_kernel = './best_models/best_model', kernels
         if save_model :
             with open(name, 'wb') as f :
                 pickle.dump(model,f)
             with open(name_kernel, 'wb') as f :
                 pickle.dump(kernels,f)
+        print("Training ended.Took {} seconds".format(time.time()-t0))
         if do_plot :
             mu,cov = model.predict(X_train,Y_train,X_s,kernels)
             model.plot(mu,cov,X_train,Y_train,X_s,kernels)
             plt.show()
-        print("Training ended.Took {} seconds".format(time.time()-t0))
         return model,name_kernel
     elif experimental_multiprocessing :
         print("This is experimental, it is slower than monoprocessed !")
@@ -346,8 +355,86 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
         return model,kernels
 
 
+def cut_signal(signal):
+    bc = bocd.BayesianOnlineChangePointDetection(bocd.ConstantHazard(300), bocd.StudentT(mu=0, kappa=1, alpha=1, beta=1))
+    rt_mle = np.empty(signal.shape)
+    for i, d in enumerate(signal):
+        bc.update(d)
+        rt_mle[i] = bc.rt
+    index_changes = np.where(np.diff(rt_mle)<0)[0]
+    return index_changes
+
+def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
+    length = len(ts)
+    bar = int(percent*length)
+    ts = np.array(ts) [bar:-bar]
+    min_val,model = length, "l1" 
+    algo = rpt.Dynp(model="normal").fit(np.array(ts))
+    dic = {"best":[0,length]}
+    try :
+        for i in range(num_c) :
+            my_bkps = algo.predict(n_bkps=i)
+            if plot :
+                rpt.show.display(np.array(ts), my_bkps, figsize=(10, 6))
+                plt.show()
+            start_borne = 0
+            full_entro = 0
+            for borne in my_bkps :
+                val = block_entropy(ts[start_borne:borne], k=1)   
+                full_entro = val + full_entro
+                start_borne = borne
+            if full_entro == 0 : break
+            elif full_entro < min_val :
+                min_val = full_entro
+                dic["best"] = [0]+my_bkps
+            else : pass 
+    except Exception as e :
+        print(e)
+        print("Not enough point")
+        return {"best":[0,length]}
+    return dic
+
+import numpy as np
+from GPy_ABCD import *
+from GPy_ABCD import Models
+import pandas as pd 
+
 
 if __name__ =="__main__" :
+
+    Y = np.array(pd.read_csv("./data/128.csv",sep=",")["x"]).reshape(-1, 1)
+    plt.plot(Y)
+    plt.show()
+    """dic = changepoint_detection(Y,percent=0.05,plot=True,num_c=4)
+    print(dic)"""
+    Y = Y[:300]
+    X = np.linspace(0,len(Y)+40,len(Y)).reshape(-1,1)
+    X_s = np.linspace(0,len(Y)+40,len(Y)).reshape(-1, 1)
+    model,kernels = launch_analysis(X,Y,X_s,prune=True,nb_by_step=10)
+    mu,cov = model.predict(X,Y,X_s,kernels)
+    model.plot(mu,cov,X,Y,X_s,kernels)
+    plt.show()
+    """t0 = time.time()
+    best_mods, all_mods, all_exprs, expanded, not_expanded = Models.modelSearch.explore_model_space(X, Y)
+    print('time took: {} seconds'.format(time.time()-t0))
+    preds = best_mods[0].predict(Y_train)
+    m = best_mods[0]
+    m.model.plot()
+    plt.show()"""
+    """X = np.arange(len(Y)).reshape(-1, 1)
+    X_s = np.arange(0,len(Y)+20, 1).reshape(-1, 1)
+    model,kernels = launch_analysis(X,Y,X_s,prune=True,nb_by_step=10)
+    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
+    model.plot(mu,cov,X_train,Y_train,X_s,kernel)
+    plt.show()"""
+    """plt.plot(Y)
+    plt.show()
+
+    segment = cut_signal(Y)
+    print(segment)
+    """
+
+    
     """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
     X = np.arange(len(Y)).reshape(-1, 1)
     X_s = np.arange(0, 179, 1).reshape(-1, 1)
@@ -357,15 +444,23 @@ if __name__ =="__main__" :
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
     model,kernels = launch_analysis(X,Y,X_s)
     """
-    X = np.linspace(0,100,100).reshape(-1, 1)
-    Y = 3*(np.sin(X)).reshape(-1, 1)
-    X_s = np.arange(-30, 130, 1).reshape(-1, 1)
+    """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
+    X = np.arange(len(Y)).reshape(-1, 1)
+    X_s = np.arange(0, 179, 1).reshape(-1, 1)
     X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
-    model,kernel = single_model(X,Y,X_s,['+PER'],nb_restart=15,nb_iter=10,verbose=False)
-    #model,kernel = launch_analysis(X,Y,X_s,prune=True,nb_by_step=10)
+    #X_train,Y_train,X_s = tf.Variable(X,dtype=tf.float32),tf.Variable(Y,dtype=tf.float32),tf.Variable(X_s,dtype=tf.float32)
+    model,kernel = single_model(X,Y,X_s,['+PER',"*LIN"],nb_restart=50,nb_iter=10,verbose=False)
     mu,cov = model.predict(X_train,Y_train,X_s,kernel)
     model.plot(mu,cov,X_train,Y_train,X_s,kernel)
     plt.show()
+    t0 = time.time()
+    k = GPy.kern.StdPeriodic(input_dim=1) * GPy.kern.Linear(input_dim=1)
+    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
+    m.optimize_restarts(20)
+    print('time took: {} seconds'.format(time.time()-t0))
+    print(m)
+    m.plot()
+    plt.show()"""
     """
     #### Loading model ##########
     with open('best_model','rb') as f:
@@ -376,7 +471,7 @@ if __name__ =="__main__" :
     mu,cov = model.predict(X_train,Y_train,X_s,kernel)
     model.plot(mu,cov,X_train,Y_train,X_s,kernel_name =kernel)
     plt.show()
-    odel,kernels = launch_analysis(X,Y,X_s)
+    model,kernels = launch_analysis(X,Y,X_s)
     print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X_train,Y_train,X_s,kernels)
     model.plot(mu,cov,X_train,Y_train,X_s)
@@ -402,6 +497,3 @@ if __name__ =="__main__" :
     
 
         
-    
-
-    
