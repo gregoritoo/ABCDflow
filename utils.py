@@ -13,7 +13,7 @@ import pandas as pd
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
-OPTIMIZER = tf.optimizers.RMSprop(learning_rate=0.01)
+OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.01)
 
 KERNELS_LENGTH = {
     "LIN" : 1,
@@ -22,7 +22,12 @@ KERNELS_LENGTH = {
     "PER" :3,
 }
 
-
+KERNELS_OPTIMIZERS = {
+    "LIN" : tf.optimizers.RMSprop(learning_rate=0.3),#tf.optimizers.Nadam(learning_rate=0.3),
+    "WN" : tf.optimizers.RMSprop(learning_rate=0.01),
+    "SE" : None,
+    "PER" :3,
+}
 
 KERNELS_FUNCTIONS = {
     "LIN" : kernels.LIN,
@@ -65,8 +70,8 @@ def get_values(mu_s,cov_s,nb_samples=100):
 
 
 def compute_posterior(y,cov,cov_s,cov_ss):
-    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.001*tf.eye(cov.shape[0]))),y)
-    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+0.001*tf.eye(cov.shape[0]))),cov_s)
+    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+tf.eye(cov.shape[0],dtype=tf.float32))),y)
+    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+tf.eye(cov.shape[0],dtype=tf.float32))),cov_s)
     return mu,cov
 
 @tf.function
@@ -76,7 +81,7 @@ def log_l(X,Y,params,kernel):
     elif kernel == "LIN" :
         cov = Linear(X,Y,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+1*tf.eye(X.shape[0])
     elif kernel =="SE":
-        cov = exp(X,Y,l=params["l"],sigma=params["sigma"])+ 0.001*tf.eye(X.shape[0])
+        cov = exp(X,Y,l=params["l"],sigma=params["sigma"])+ 1*tf.eye(X.shape[0])
     loss = -0.5*tf.matmul(tf.matmul(tf.transpose(Y),tf.linalg.inv(cov)),Y) - 0.5*tf.math.log(tf.linalg.det(cov))-0.5*X.shape[0]*tf.math.log([PI*2])
     
     return -loss
@@ -125,7 +130,7 @@ def log_cholesky_l_test(X,Y,params,kernel):
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov  = tf.math.multiply(cov,method(X,X,[params[p] for p in par]))
             num += KERNELS_LENGTH[op[1:]]
-    _L = tf.linalg.cholesky(cov+1*tf.eye(X.shape[0]))
+    _L = tf.linalg.cholesky(tf.cast(cov+1*tf.eye(X.shape[0],dtype=tf.float32),dtype=tf.float32))
     _temp = tf.linalg.solve(_L, Y)
     alpha = tf.linalg.solve(tf.transpose(_L), _temp)
     loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])

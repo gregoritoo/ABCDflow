@@ -189,6 +189,14 @@ class CustomModel(object):
     @property
     def _variables(self):
         return vars(self)
+    @property
+    def _opti_variables(self):
+        return list(vars(self).values())
+    
+    @property
+    def _opti_variables_name(self):
+        return vars(self).keys()
+    
 
     @tf.function
     def __call__(self,X_train,Y_train,kernels_name):
@@ -241,8 +249,9 @@ class CustomModel(object):
         ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
         return k*tf.math.log(n) + 2*ll
 
-    def plot(self,mu,cov,X_train,Y_train,X_s):
+    def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name="None"):
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
+        if kernel_name is not None : plt.title("kernel :"+''.join(kernel_name)[1:])
         plot_gs_pretty(Y_train.numpy(),mean,X_train.numpy(),X_s.numpy(),stdp,stdi)
         plt.show()
 

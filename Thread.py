@@ -13,7 +13,7 @@ import sys
 from Regressors import * 
 from utils import train_step
 import pandas as pd 
-tf.keras.backend.set_floatx('float32')
+tf.keras.backend.set_floatx('float64')
 from itertools import chain
 import itertools
 import pickle 
