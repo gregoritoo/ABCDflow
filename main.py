@@ -38,6 +38,7 @@ KERNELS_LENGTH = {
     "CONST" : 1,
     "SE" : 2,
     "PER" :3,
+    "RQ" : 3,
 }
 
 KERNELS = {
@@ -45,6 +46,7 @@ KERNELS = {
     "CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
+    "RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
 }
 
 
@@ -57,37 +59,11 @@ KERNELS_OPS = {
     "+CONST" : "add",
     "+SE" : "add",
     "+PER" : "add",
+    "+RQ" : "add",
+    "*RQ" : "mul",
 }
 
 
-
-def make_val_and_grad_fn(value_fn):
-  @functools.wraps(value_fn)
-  def val_and_grad(x):
-    return tfp.math.value_and_gradient(value_fn,x)
-  return val_and_grad
-
-
-@contextlib.contextmanager
-def timed_execution():
-  t0 = time.time()
-  yield
-  dt = time.time() - t0
-  print('Evaluation took: %f seconds' % dt)
-
-
-def np_value(tensor):
-  """Get numpy value out of possibly nested tuple of tensors."""
-  if isinstance(tensor, tuple):
-    return type(tensor)(*(np_value(t) for t in tensor))
-  else:
-    return tensor.numpy()
-
-def run(optimizer):
-  optimizer()  # Warmup.
-  with timed_execution():
-    result = optimizer()
-  return np_value(result)
 
 
 
@@ -118,44 +94,8 @@ def _preparekernel(_kernel_list):
 
 
 def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="SGD"):
-    base_model = model 
-    loop = 0
-    best = 10e90
-    @make_val_and_grad_fn
-    def log_cholesky_lbfgs(params):
-        params = list([tf.reshape(ele,(1,-1)) for ele in params])
-        print("=========",params)
-        num = 0
-        X = X_train 
-        Y = Y_train
-        kernel = kernels_name
-        cov = 1
-        params_name = list(model._variables)
-        for op in kernel :
-            if op[0] == "+":
-                method = KERNELS_FUNCTIONS[op[1:]]
-                par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
-                if not method:
-                    raise NotImplementedError("Method %s not implemented" % op[1:])
-                cov += method(X,X,tf.reshape(params[num:num+KERNELS_LENGTH[op[1:]]],(1,-1)))
-                num += KERNELS_LENGTH[op[1:]]
-            elif op[0] == "*":
-                method = KERNELS_FUNCTIONS[op[1:]]
-                method = KERNELS_FUNCTIONS[op[1:]]
-                par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
-                if not method:
-                    raise NotImplementedError("Method %s not implemented" % op[1:])
-                cov  = tf.math.multiply(cov,method(X,X,[params[p] for p in par]))
-                num += KERNELS_LENGTH[op[1:]]
-        _L = tf.linalg.cholesky(cov+_jitter*tf.eye(X.shape[0]))
-        _temp = tf.linalg.solve(_L, Y)
-        alpha = tf.linalg.solve(tf.transpose(_L), _temp)
-        loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])
-        return tf.reshape(loss,(1,-1))
-
-    def l2_regression_with_lbfgs():
-        return tfp.optimizer.lbfgs_minimize(log_cholesky_lbfgs,initial_position=model._opti_variables,tolerance=1e-8)
-
+    best = 10e40
+    loop,base_model = 0,model
     if mode == "SGD" :
         while loop < nb_restart :
             try :
@@ -180,6 +120,8 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
     else :
         params = run(l2_regression_with_lbfgs)
     return best_model
+
+
 
 
 
@@ -255,10 +197,8 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     j = 0
     full_length = len(COMB)
     while len(COMB) > 2 :
-        try : 
-            combi = COMB[j]
-        except Exception as e :
-            break
+        try : combi = COMB[j]
+        except Exception as e :break
         iteration+=1
         j+=1
         if prune :
@@ -267,7 +207,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS[: nb_by_step]
                 _before_len = len(COMB)
                 COMB = _prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
-                _to_add = _before_len - len(COM)-1
+                _to_add = _before_len - len(COMB)-1
                 iteration += _to_add
             BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
                                                                 nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER)
@@ -323,9 +263,10 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
 
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adamax(0.0005), \
-                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False):
+                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5):
     if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")
     if nb_by_step is  not None and nb_by_step > loop_size : raise ValueError("Loop size must be superior to nb_by_step")   
+    if not straigth : print("You chooosed straightforward training")
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
     if reduce_data :
             mean, var = tf.nn.moments(X_train,axes=[0])
@@ -335,6 +276,10 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
             mean, var = tf.nn.moments(X_s,axes=[0])
             X_s = (X_s - mean) / var
     t0 = time.time()
+    if straigth :
+        i=-1
+        model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth)
+        return model,kernels
     if not experimental_multiprocessing :
         i=-1
         model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER)
@@ -397,22 +342,73 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
         return {"best":[0,length]}
     return dic
 
+def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=10,initialisation_restart=5):
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+    TEMP_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+    TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
+    kerns = tuple((KERNELS_OPS.keys()))
+    COMB,count = [],0
+    combination =  list(itertools.combinations(kerns, 1))
+    train_length = depth*len(KERNELS) + len(KERNELS)/2
+    for comb in combination :
+        if comb[0][0] != "*" : COMB.append(comb)
+    for i in range(1,depth) :
+        count += 1
+        if i > 1 :
+            COMB = search_and_add(tuple(BEST_MODELS["model_list"]))
+        iteration=0
+        j = 0
+        while len(COMB) > 0 :
+            try : combi = COMB[j]
+            except Exception as e :break
+            iteration+=1
+            j+=1
+            TEMP_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart)
+            sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combi))
+            sys.stdout.flush()
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        if TEMP_MODELS["score"] < BEST_MODELS["score"] :
+            BEST_MODELS = TEMP_MODELS
+    model=BEST_MODELS["model"]
+    model.viewVar(BEST_MODELS["model_list"])
+    print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
+    return model,BEST_MODELS["model_list"]
+
+
 import numpy as np
 from GPy_ABCD import *
 from GPy_ABCD import Models
 import pandas as pd 
 
 
+def search_and_add(_kernel_list):
+    kerns = tuple((KERNELS_OPS.keys()))
+    COMB = []
+    combination =  list(itertools.combinations(kerns, 1))
+    for comb in combination :
+        COMB.append(_kernel_list+comb)
+    return COMB
+
+
+
 if __name__ =="__main__" :
 
+    Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
     
-    Y = np.array(pd.read_csv("./data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
+    #Y = np.array(pd.read_csv("./data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False)
+    t0 = time.time()
+    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False,straigth=True,depth=4,initialisation_restart=2)
+    print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()
+    """model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False)
+    mu,cov = model.predict(X,Y,X_s,kernel)
+    model.plot(mu,cov,X,Y,X_s,kernel)
+    plt.show()"""
     """model,kernel = launch_analysis(X,Y,X_s,nb_restart=11,nb_iter=5,reduce_data=False)
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)

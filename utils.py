@@ -21,6 +21,7 @@ KERNELS_LENGTH = {
     "CONST" : 1,
     "SE" : 2,
     "PER" :3,
+    "RQ" : 3,
 }
 
 KERNELS_OPTIMIZERS = {
@@ -28,6 +29,7 @@ KERNELS_OPTIMIZERS = {
     "CONST" : tf.optimizers.RMSprop(learning_rate=0.01),
     "SE" : None,
     "PER" :3,
+
 }
 
 KERNELS_FUNCTIONS = {
@@ -35,6 +37,7 @@ KERNELS_FUNCTIONS = {
     "CONST" : kernels.CONST,
     "PER" : kernels.PER,
     "SE" : kernels.SE,
+    "RQ" : kernels.RQ,
 
 }
 
