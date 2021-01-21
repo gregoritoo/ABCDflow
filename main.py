@@ -344,21 +344,22 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=10,initialisation_restart=5):
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
-    TEMP_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
-    TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     kerns = tuple((KERNELS_OPS.keys()))
     COMB,count = [],0
     combination =  list(itertools.combinations(kerns, 1))
     train_length = depth*len(KERNELS) + len(KERNELS)/2
     for comb in combination :
         if comb[0][0] != "*" : COMB.append(comb)
-    for i in range(1,depth) :
+    for loop in range(1,depth) :
+        TEMP_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+        TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
         count += 1
-        if i > 1 :
+        loop += 1
+        if loop > 1 :
             COMB = search_and_add(tuple(BEST_MODELS["model_list"]))
         iteration=0
         j = 0
-        while len(COMB) > 0 :
+        while j <  len(COMB)-1 :
             try : combi = COMB[j]
             except Exception as e :break
             iteration+=1
@@ -370,6 +371,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             sys.stdout.flush()
         if TEMP_MODELS["score"] < BEST_MODELS["score"] :
             BEST_MODELS = TEMP_MODELS
+        print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop-1))
     model=BEST_MODELS["model"]
     model.viewVar(BEST_MODELS["model_list"])
     print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
@@ -396,11 +398,11 @@ if __name__ =="__main__" :
 
     Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
     
-    #Y = np.array(pd.read_csv("./data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
+    Y = np.array(pd.read_csv("../data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
     t0 = time.time()
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False,straigth=True,depth=4,initialisation_restart=2)
+    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False,straigth=True,depth=10,initialisation_restart=2)
     print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
