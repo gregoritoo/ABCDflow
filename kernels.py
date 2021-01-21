@@ -12,13 +12,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.keras.backend.set_floatx('float32')
 
 PI = m.pi
-
+_precision = tf.float64
 
 def LIN(x,y,params):
     c = params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
-    """x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
-    y1 = tf.math.subtract(y,c*tf.ones_like(y))"""
+    x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
+    y1 = tf.math.subtract(y,c*tf.ones_like(y))
     x1 = tf.transpose(x)
     y1 = y
     multiply_y = tf.constant([1,x.shape[0]])
@@ -26,10 +26,10 @@ def LIN(x,y,params):
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     w = tf.math.multiply(y2,x2) 
-    return c*w
+    return w
 
 
-def WN(x,y,sigma):
+def CONST(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same shapes"
     x1 = tf.transpose(x)
     multiply_x = tf.constant([y.shape[0],1])
@@ -60,7 +60,7 @@ def SE(x,y1,params):
     y2 = tf.transpose(tf.tile(y1, multiply_y))
     multiply_x = tf.constant([y1.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
-    const_1 = 0.5*tf.cast(-1/tf.math.square(l),dtype=tf.float32)
+    const_1 = 0.5*tf.cast(-1/tf.math.square(l),dtype=_precision)
     return sigma*tf.math.exp(tf.math.square(tf.math.subtract(y2,x2))*const_1)
 
 

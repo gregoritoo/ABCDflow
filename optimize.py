@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.keras.backend.set_floatx('float64')
+tf.keras.backend.set_floatx('float32')
 import matplotlib.pyplot as plt 
 import math as m
 import seaborn as sn
@@ -151,6 +151,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
         _temp = tf.linalg.solve(_L, Y)
         alpha = tf.linalg.solve(tf.transpose(_L), _temp)
         loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])
+        print("=====================losssssssssssssssssssss",loss)
         return tf.reshape(loss,(1,-1))
 
     def l2_regression_with_lbfgs():
@@ -179,6 +180,8 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
             loop += 1
     else :
         params = run(l2_regression_with_lbfgs)
+        #params = run(l2_regression_with_lbfgs).converged.numpy()
+        print("==================== params ===========================",params)
     return best_model
 
 
@@ -211,27 +214,24 @@ def _prune(tempbest,rest):
 
 
 def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
-                                        nb_by_step,prune,verbose,OPTIMIZER,unique=False,single=False,initialisation_restart=5):
+                                        nb_by_step,prune,verbose,OPTIMIZER,unique=False,single=False):
     j=0
     try :
         if not unique : _kernel_list = list(combi)
         else : _kernel_list = list([combi])
         if single : _kernel_list = combi
         kernels_name = ''.join(combi)
-        true_restart = 0
-        kernels = _preparekernel(_kernel_list)
         if kernels_name[0] != "*" :
-            while true_restart < initialisation_restart :
-                model=CustomModel(kernels)
-                model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose)
-                BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-                if BIC < BEST_MODELS["score"]  : 
-                    BEST_MODELS["model_name"] = kernels_name
-                    BEST_MODELS["model_list"] = _kernel_list
-                    BEST_MODELS["model"] = model
-                    BEST_MODELS["score"] = BIC 
-                TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]  
-                true_restart += 1                         
+            kernels = _preparekernel(_kernel_list)
+            model=CustomModel(kernels)
+            model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose)
+            BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
+            if BIC < BEST_MODELS["score"]  : 
+                BEST_MODELS["model_name"] = kernels_name
+                BEST_MODELS["model_list"] = _kernel_list
+                BEST_MODELS["model"] = model
+                BEST_MODELS["score"] = BIC 
+            TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]                           
     except Exception as e:
         print("error with kernel :",kernels_name)
         print(e)
@@ -253,8 +253,8 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     iteration=0
     j = 0
-    full_length = len(COMB)
     while len(COMB) > 2 :
+        full_length = len(COMB)
         try : 
             combi = COMB[j]
         except Exception as e :
@@ -265,19 +265,17 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
             if iteration % loop_size == 0 :
                 j=0
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS[: nb_by_step]
-                _before_len = len(COMB)
                 COMB = _prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
-                _to_add = _before_len - len(COM)-1
-                iteration += _to_add
+                #print("Model to try :",COMB)
             BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
                                                                 nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER)
             TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(by=['score'],ascending=True)[:nb_by_step]
-            sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
+            sys.stdout.write("\r"+"="*int(j/full_length*50)+">"+"."*int((full_length-j)/full_length*50)+"|"+" * model is {} ".format(combi))
             sys.stdout.flush()
         else :  
             COMB,j = COMB[1 :],0
-            BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER)
-            sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
+            BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose)
+            sys.stdout.write("\r"+"="*int(j/full_length*50)+">"+"."*int((full_length-j)/full_length*50)+"|"+" * model is {} ".format(combi))
             sys.stdout.flush()
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -287,9 +285,8 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     return model,BEST_MODELS["model_list"]
 
 
-def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06),nb_restart=7,nb_iter=4,verbose=False):
+def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER,nb_restart=150,nb_iter=50,verbose=False):
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
-    assert kernel[0][0] == "+" , "First kernel of the list must start with + "
     iteration = 0
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e400}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
@@ -322,8 +319,8 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
         pool.starmap(analyse,params)
 
 
-def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adamax(0.0005), \
-                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False):
+def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06), \
+                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=True):
     if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")
     if nb_by_step is  not None and nb_by_step > loop_size : raise ValueError("Loop size must be superior to nb_by_step")   
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
@@ -397,116 +394,106 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
         return {"best":[0,length]}
     return dic
 
-import numpy as np
-from GPy_ABCD import *
-from GPy_ABCD import Models
-import pandas as pd 
+GRID_SEARCH = {
+        "algo" : [tf.optimizers.Adamax,tf.optimizers.Adadelta,tf.optimizers.Adam,tf.optimizers.RMSprop] ,
+        "lr"  : np.linspace(1e-05,1,100) ,
+}
+OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
 
 
 if __name__ =="__main__" :
 
-    
-    Y = np.array(pd.read_csv("./data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
-    X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
-    X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False)
-    mu,cov = model.predict(X,Y,X_s,kernel)
-    model.plot(mu,cov,X,Y,X_s,kernel)
-    plt.show()
-    """model,kernel = launch_analysis(X,Y,X_s,nb_restart=11,nb_iter=5,reduce_data=False)
-    mu,cov = model.predict(X,Y,X_s,kernel)
-    model.plot(mu,cov,X,Y,X_s,kernel)
-    plt.show()"""
-
-
-    """Y = np.array(pd.read_csv("./data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
-    dic = changepoint_detection(Y,percent=0.05,plot=True,num_c=4)
-    print(dic)
-    #Y = Y[:300]
-    X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
-    X_s = np.linspace(0,len(Y)+40,len(Y)+41).reshape(-1, 1)
-    model,kernels = launch_analysis(X,Y,X_s,prune=False,reduce_data=False)
-    mu,cov = model.predict(X,Y,X_s,kernels)
-    model.plot(mu,cov,X,Y,X_s,kernels)
-    plt.show()"""
-    """t0 = time.time()
-    best_mods, all_mods, all_exprs, expanded, not_expanded = Models.modelSearch.explore_model_space(X, Y)
-    print('time took: {} seconds'.format(time.time()-t0))
-    preds = best_mods[0].predict(Y_train)
-    m = best_mods[0]
-    m.model.plot()
-    plt.show()"""
-    """X = np.arange(len(Y)).reshape(-1, 1)
-    X_s = np.arange(0,len(Y)+20, 1).reshape(-1, 1)
-    model,kernels = launch_analysis(X,Y,X_s,prune=True,nb_by_step=10,nb_restart=11,nb_iter=5)
-    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
-    model.plot(mu,cov,X_train,Y_train,X_s,kernel)
-    plt.show()"""
-    """plt.plot(Y)
-    plt.show()
-
-    segment = cut_signal(Y)
-    print(segment)
-    """
-    
-    
-    """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
-    X = np.arange(len(Y)).reshape(-1, 1)
-    X_s = np.arange(0, 179, 1).reshape(-1, 1)
     X = np.linspace(0,100,100).reshape(-1, 1)
     Y = 3*(np.sin(X)).reshape(-1, 1)
     X_s = np.arange(-30, 130, 1).reshape(-1, 1)
-    X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
-    model,kernels = launch_analysis(X,Y,X_s)
-    """
-    """Y = np.array(pd.read_csv("periodic.csv",sep=",")["Temp"]).reshape(-1, 1)
-    X = np.arange(len(Y)).reshape(-1, 1)
-    X_s = np.arange(0, 179, 1).reshape(-1, 1)
-    X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
-    #X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
-    model,kernel = single_model(X,Y,X_s,['+PER',"*LIN"],nb_restart=50,nb_iter=10,verbose=False)
-    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
-    model.plot(mu,cov,X_train,Y_train,X_s,kernel)
-    plt.show()
-    t0 = time.time()
-    k = GPy.kern.StdPeriodic(input_dim=1) * GPy.kern.Linear(input_dim=1)
-    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
-    m.optimize_restarts(20)
-    print('time took: {} seconds'.format(time.time()-t0))
-    print(m)
-    m.plot()
-    plt.show()"""
-    """
-    #### Loading model ##########
-    with open('best_model','rb') as f:
-        model = pickle.load(f)
-    with open('kernels','rb') as f:
-        kernel = pickle.load(f)
-    model.viewVar(kernel)
-    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
-    model.plot(mu,cov,X_train,Y_train,X_s,kernel_name =kernel)
-    plt.show()
-    model,kernels = launch_analysis(X,Y,X_s)
-    print('time took: {} seconds'.format(time.time()-t0))
-    mu,cov = model.predict(X_train,Y_train,X_s,kernels)
-    model.plot(mu,cov,X_train,Y_train,X_s)
-    plt.show()
-    t0 = time.time()
-    k = GPy.kern.StdPeriodic(input_dim=1) 
-    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
-    m.optimize_restarts(20)
-    print('time took: {} seconds'.format(time.time()-t0))
-    print(m)
-    m.plot()
-    plt.show()
-    k = GPy.kern.StdPeriodic(input_dim=1) 
-    m = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
-    m.optimize_restarts(15)
-    print('time took: {} seconds'.format(time.time()-t0))
-    print(m)
-    m.plot()
-    plt.show()"""
+    """HISTORY = pd.DataFrame(columns=["OPTIMIZER","learning_rate","score"])
+    for element in GRID_SEARCH["algo"] :
+        for lr in GRID_SEARCH["lr"] :
+            OPTIMIZER = element(lr)
+            print("kefzleznfje")
+            print(OPTIMIZER)
+            try :
+                model,kernel = single_model(X,Y,X_s,['+PER'],OPTIMIZER,nb_restart=15,nb_iter=10,verbose=False)
+                BIC = model.compute_BIC(X,Y,kernel).numpy()
+                print(int(BIC[0]))
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,int(BIC[0])]
+            except Exception :
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,0]
+    HISTORY.to_csv("./optimization_results/PER.csv")
+    HISTORY = pd.DataFrame(columns=["OPTIMIZER","learning_rate","score"])
+    for element in GRID_SEARCH["algo"] :
+        for lr in GRID_SEARCH["lr"] :
+            OPTIMIZER = element(lr)
+            print("kefzleznfje")
+            print(OPTIMIZER)
+            try :
+                model,kernel = single_model(X,Y,X_s,['+CONST'],OPTIMIZER,nb_restart=15,nb_iter=10,verbose=False)
+                BIC = model.compute_BIC(X,Y,kernel).numpy()
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,float(BIC[0])]
+            except Exception :
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,0]
+    HISTORY.to_csv("./optimization_results/CONST.csv")
+    HISTORY = pd.DataFrame(columns=["OPTIMIZER","learning_rate","score"])
+    for element in GRID_SEARCH["algo"] :
+        for lr in GRID_SEARCH["lr"] :
+            OPTIMIZER = element(lr)
+            print("kefzleznfje")
+            print(OPTIMIZER)
+            try :
+                model,kernel = single_model(X,Y,X_s,['+SE'],OPTIMIZER,nb_restart=15,nb_iter=10,verbose=False)
+                BIC = model.compute_BIC(X,Y,kernel).numpy()
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,float(BIC[0])]
+            except Exception :
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,0]
+    HISTORY.to_csv("./optimization_results/SE.csv")
+    HISTORY = pd.DataFrame(columns=["OPTIMIZER","learning_rate","score"])
+    for element in GRID_SEARCH["algo"] :
+        for lr in GRID_SEARCH["lr"] :
+            OPTIMIZER = element(lr)
+            print("kefzleznfje")
+            print(OPTIMIZER)
+            try :
+                model,kernel = single_model(X,Y,X_s,['+LIN'],OPTIMIZER,nb_restart=15,nb_iter=10,verbose=False)
+                BIC = model.compute_BIC(X,Y,kernel).numpy()
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,float(BIC[0])]
+            except Exception :
+                HISTORY.loc[len(HISTORY)+1]=[str(element)[-15:-2],lr,0]
+    HISTORY.to_csv("./optimization_results/LIN.csv")"""
+
+    df_lin = pd.read_csv("./optimization_results/LIN.csv")
+    df_se = pd.read_csv("./optimization_results/SE.csv")
+    df_per = pd.read_csv("./optimization_results/PER.csv")
+    df_const = pd.read_csv("./optimization_results/CONST.csv")
+
+    opti_lin = df_lin["OPTIMIZER"].unique()
+    opti_se = df_se["OPTIMIZER"].unique()
+    opti_per = df_per["OPTIMIZER"].unique()
+    opti_const = df_const["OPTIMIZER"].unique()
+
+    """for element in opti_lin :
+        df = df_lin[df_lin["OPTIMIZER"]==element]
+        df[df['score'] == 0]=100000
+        plt.plot(df["learning_rate"],df["score"],label=element+"_lin")
     
+    for element in opti_se :
+        df = df_se[df_se["OPTIMIZER"]==element]
+        plt.plot(df["learning_rate"],df["score"],label=element+"_se")"""
+
+    
+    for element in opti_per :
+        df = df_per[df_per["OPTIMIZER"]==element]
+        df_lin = df_lin[df_lin["OPTIMIZER"]==element]
+        df_const = df_const[df_const["OPTIMIZER"]==element]
+        plt.plot(df_lin["learning_rate"],df_lin["score"].max()-df["score"],label=element+"_per")
+        plt.plot(df["learning_rate"],df["score"].max()-df["score"],label=element+"_per")
+        plt.legend()
+        plt.show()
+    
+    """for element in opti_const :
+        df = df_const[df_const["OPTIMIZER"]==element]
+        plt.plot(df["learning_rate"],df["score"],label=element+"_const")"""
+    
+
     
     
     
