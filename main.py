@@ -71,16 +71,43 @@ KERNELS_OPS = {
 
 
 def _mulkernel(kernels_name,_kernel_list,new_k):
+    ''' 
+        Add  new kernel to the names and in the kernel list with a * 
+    inputs :
+        kernels_name :  string, name of the full kernel  ex +LIN*PER
+        _kernels_list : list of string, list of kernels with theirs according operation ex ["+LIN","*PER"]
+        new_k : string, name of kernel to add with it according operation ex *PER
+    outputs :
+        kernels_name :  string, updated kernel name   ex +LIN*PER*PER
+        _kernels_list : list of string, list of updated kernels ex ["+LIN","*PER","*PER"]
+    '''
     kernels_name = "("+kernels_name+")" + "*"+new_k
     _kernel_list = _kernel_list + ["*"+new_k]
     return kernels_name,_kernel_list
 
 def _addkernel(kernels_name,_kernel_list,new_k):
+    ''' 
+        Add  new kernel to the names and in the kernel list with a +
+    inputs :
+        kernels_name :  string, name of the full kernel  ex +LIN*PER
+        _kernels_list : list of string, list of kernels with theirs according operation ex ["+LIN","*PER"]
+        new_k : string, name of kernel to add with it according operation ex +PER
+    outputs :
+        kernels_name :  string, updated kernel name   ex +LIN*PER+PER
+        _kernels_list : list of string, list of updated kernels ex ["+LIN","*PER","+PER"]
+    '''
     kernels_name = kernels_name + "+"+new_k
     _kernel_list = _kernel_list + ["+"+new_k]
     return kernels_name,_kernel_list
 
 def _preparekernel(_kernel_list):
+    '''
+        Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
+    inputs :
+        _kernels_list : list of string, list of kernels with theirs according operation
+    outputs :
+        kernels : dict, dict cotaining kernel parameters (see KERNELS)
+    '''
     dic = tuple([KERNELS[d[1:]] for d in _kernel_list])
     kernels={}
     i = 1
@@ -97,9 +124,24 @@ def _preparekernel(_kernel_list):
 
 
 def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="SGD"):
+    '''
+        Train the model according to the parameters 
+    inputs :
+        model : CustomModel object , Gaussian process model
+        nb_iter : int, number of iterations during the training
+        nb_restart : int, retrain on same data (epoch)
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        kernels_name : string, updated kernel name   ex +LIN*PER*PER
+        OPTIMIZER : tf optimizer object 
+        verbose : Bool, print training process
+        mode : string , training mode 
+    outputs:
+        best_model : dict, dictionnary containing the best model and it score
+    '''
     best = 10e40
     loop,base_model = 0,model
-    lr = 0.01
+    lr = 0.1
     old_val,val,lim = 0,0,1.5
     if mode == "SGD" :
         while loop < nb_restart :
@@ -113,14 +155,6 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                         if np.isnan(val) :
                             loop += 1
                             break 
-                        """if val < 1000 : lr = 0.001
-                        if val < 10 or np.isnan(val) : new_lr = 0.00001                            
-                        if old_val > val*lim and lr > 0.00001 : 
-                            lr = lr/10
-                            lim = 10
-                            lim = 100
-                        if old_val > val * 100 : lr = 0.001
-                        old_val = val"""
                         sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."* int((nb_iter-iteration)/nb_iter*50)+"|" \
                             +" * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} with lr of: {}".format(val[0][0],iteration,loop+1,nb_restart,lr))
                         sys.stdout.flush()
@@ -145,6 +179,13 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
 
 
 def search(kernels_name,_kernel_list,init):
+    '''
+        Return all the possible combinaison of kernels starting with a '+' 
+    inputs :
+        kernels_name :  string, not used 
+        _kernel_list : list of tuples, not used 
+        init : Bool, not used 
+    '''
     kerns = tuple((KERNELS_OPS.keys()))
     COMB = []
     for i in range(1,5) :
@@ -157,6 +198,14 @@ def search(kernels_name,_kernel_list,init):
 
 
 def _prune(tempbest,rest):
+    '''
+        Cut the graph in order to keep only the combinaison that correspond to the best for the moment 
+    inputs :
+        tempbest : list ,  names of best combinaisons of kernels already trained 
+        rest : list of tuples , all the combinaisons of kernels not trained yet 
+    outputs :
+        new_rest : list of tuples , all the combinaisons to be trained 
+    '''
     print("Prunning {} elements".format(len(rest)))
     new_rest = []
     for _element in rest :
@@ -173,6 +222,26 @@ def _prune(tempbest,rest):
 
 def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
                                         nb_by_step,prune,verbose,OPTIMIZER,unique=False,single=False,initialisation_restart=5):
+    '''
+        Launch the training of a gaussian process
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        BEST_MODELS : dict, dictionnary containing the best model and it score
+        TEMP_BEST_MODELS :  dict, dictionnary containing temporaries bests models and theirs score
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        nb_restart : int, retrain on same data (epoch)
+        kernels_name : string, updated kernel name   ex +LIN*PER*PER
+        OPTIMIZER : tf optimizer object 
+        verbose : Bool, print training process
+        mode : string , training mode 
+        unique : Bool, if only one kernel in the list ex +PER
+        single : Bool, 
+        initialisation_restart : int, number of restart training with different initiatlisation parameters
+    outputs:
+        BEST_MODELS : dict, dictionnary containing the best model and it score
+    '''
     j=0
     lr = 0.1
     init_values = BEST_MODELS["init_values"] 
@@ -209,6 +278,24 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
 
 
 def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER):
+    '''
+        Compare models for each step of the training, and keep the best model
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        nb_restart : int, retrain on same data (epoch)
+        kernels_name : string, updated kernel name   ex +LIN*PER*PER
+        OPTIMIZER : tf optimizer object 
+        i :  int;  kernel position in the list 
+        verbose : Bool, print training process
+        mode : string , training mode 
+        loop_size : int, number of testing to do before prunning 
+    outputs:
+        model : CustomModel object, best model
+        BEST_MODELS["model_list"] : list, array of best model
+    '''
     if i == -1 :
         COMB = search("",[],True)
     else :
@@ -253,6 +340,9 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
 
 
 def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learning_rate=0.001),nb_restart=7,nb_iter=4,verbose=False,initialisation_restart=2,reduce_data=False,do_plot=False):
+    """
+        Train an process without the search process
+    """
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
     if reduce_data :
             mean, var = tf.nn.moments(X_train,axes=[0])
@@ -281,6 +371,9 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
 
 
 def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
+    ''' 
+        Create a pool of nb_workers workers
+    '''
     multiprocessing.set_start_method('spawn', force=True)
     COMB = search("",[],True)
     poll_list=[]
@@ -341,6 +434,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
 
 
 def cut_signal(signal):
+
     bc = bocd.BayesianOnlineChangePointDetection(bocd.ConstantHazard(300), bocd.StudentT(mu=0, kappa=1, alpha=1, beta=1))
     rt_mle = np.empty(signal.shape)
     for i, d in enumerate(signal):
@@ -421,6 +515,11 @@ import pandas as pd
 
 
 def search_and_add(_kernel_list):
+    ''' 
+        Return all possible combinaison for one step
+    inputs :
+        _kernels_list : list, not used 
+    '''
     kerns = tuple((KERNELS_OPS.keys()))
     COMB = []
     combination =  list(itertools.combinations(kerns, 1))
@@ -442,11 +541,19 @@ if __name__ =="__main__" :
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+60,len(Y)+60).reshape(-1, 1)
     t0 = time.time()
-    #model,kernel = single_model(X,Y,X_s,["+LIN","+PER"],nb_restart=1,nb_iter=40,verbose=True,initialisation_restart=10,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=5,nb_restart=1,verbose=False,nb_iter=40,initialisation_restart=10,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    model,kernel = single_model(X,Y,X_s,["+LIN","+PER","*SE"],nb_restart=1,nb_iter=200,verbose=True,initialisation_restart=2,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=5,nb_restart=1,verbose=False,nb_iter=40,initialisation_restart=10,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
     print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
+    plt.show()
+    t0 = time.time()
+    k = (GPy.kern.Linear(input_dim=1) + GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.RBF(input_dim=1)
+    m = GPy.models.GPRegression(X, Y, k, normalizer=False)
+    m.optimize_restarts(1)
+    print('time took: {} seconds'.format(time.time()-t0))
+    print(m)
+    m.plot()
     plt.show()
     print('time took: {} seconds'.format(time.time()-t0))
     """k =( GPy.kern.RatQuad(input_dim=1) * GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.Exponential(input_dim=1)
