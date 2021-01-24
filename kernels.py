@@ -8,6 +8,10 @@ import seaborn as sn
 import GPy
 import sys 
 import os 
+import tensorflow_probability as tfp 
+
+
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 
@@ -15,8 +19,8 @@ PI = m.pi
 _precision = tf.float64
 
 def LIN(x,y,params):
-    c = params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    c,sigmav,sigmab = params[0],params[1],params[2]
     x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
     y1 = tf.math.subtract(y,c*tf.ones_like(y))
     multiply_y = tf.constant([1,x.shape[0]])
@@ -24,8 +28,14 @@ def LIN(x,y,params):
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     w = tf.math.multiply(y2,x2) 
-    return w
+    return sigmab+sigmav*w
 
+"""def LIN(x,y,params):
+    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    c,sigmab,sigmav = params[0],params[1],params[2]
+    lin = tfp.math.psd_kernels.Linear(bias_variance=sigmav, slope_variance=sigmab, shift=c, \
+        feature_ndims=1,validate_args=False, name='Linear')
+    return lin.apply(x, y, example_ndims=0, name='apply')"""
 
 def CONST(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
@@ -35,6 +45,18 @@ def CONST(x,y,sigma):
     return sigma*tf.ones_like(x2)
 
 
+def WN(x,y,sigma):
+    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    x1 = tf.transpose(x)
+    multiply_x = tf.constant([y.shape[0],1])
+    multiply_y = tf.constant([1,x.shape[0]])
+    x2 = tf.transpose(tf.tile(x1, multiply_x))
+    y2 = tf.transpose(tf.tile(y, multiply_y))
+    y = tf.math.subtract(x2,y2)
+    zero = tf.constant(0, dtype=_precision)
+    w_bool = tf.math.logical_not(tf.not_equal(y, zero), name="inverse")
+    w = tf.cast(w_bool,dtype=_precision)
+    return sigma*w
 
 
 def PER(x,y1,params):
@@ -50,6 +72,17 @@ def PER(x,y1,params):
     w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
+
+"""def PER(x,y,params):
+    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    l,p,sigma = params[0],params[1],params[2]
+    per = tfp.math.psd_kernels.ExpSinSquared(amplitude=sigma, length_scale=l, period=p,\
+                    feature_ndims=1,validate_args=False, name='ExpSinSquared')
+    return per.apply(x, y, example_ndims=0, name='apply')"""
+
+    
+
+
 def SE(x,y1,params):
     l,sigma = params[0],params[1]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
@@ -60,6 +93,14 @@ def SE(x,y1,params):
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     const_1 = 0.5*tf.cast(-1/tf.math.square(l),dtype=_precision)
     return sigma*tf.math.exp(tf.math.square(tf.math.subtract(y2,x2))*const_1)
+
+"""def SE(x,y,params):
+    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    l,sigma = params[0],params[1]
+    se = tfp.math.psd_kernels.ExponentiatedQuadratic(amplitude=sigma, length_scale=l, feature_ndims=1, \
+                            validate_args=False,name='SquaredExponential')
+    return se.apply(x, y, example_ndims=0, name='apply')"""
+
 
 
 def RQ(x,y,params):
@@ -78,3 +119,12 @@ def RQ(x,y,params):
     return sigma*w
 
 
+"""def RQ(x,y,params):
+    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    l,sigma,alpha = params[0],params[1],params[2]
+    rq = tfp.math.psd_kernels.RationalQuadratic(amplitude=sigma, length_scale=l, scale_mixture_rate=alpha, feature_ndims=1, \
+                            validate_args=False, name='RationalQuadratic')   
+    return rq.apply(x, y, example_ndims=0, name='apply')"""
+
+def CP(x,y,params):
+    pass 

@@ -7,37 +7,33 @@ import math as m
 import seaborn as sn
 import GPy
 import sys 
-import kernels
+import kernels as kernels 
 import os 
 import pandas as pd 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
 OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
-_jitter = 1e-6
+_jitter = 1e-4
 _precision = tf.float64
 KERNELS_LENGTH = {
-    "LIN" : 1,
-    "CONST" : 1,
+    "LIN" : 3,
     "SE" : 2,
     "PER" :3,
     "RQ" : 3,
+    "CONST" : 3,
+    "WN" : 1,
 }
 
-KERNELS_OPTIMIZERS = {
-    "LIN" : tf.optimizers.RMSprop(learning_rate=0.3),#tf.optimizers.Nadam(learning_rate=0.3),
-    "CONST" : tf.optimizers.RMSprop(learning_rate=0.01),
-    "SE" : None,
-    "PER" :3,
 
-}
 
 KERNELS_FUNCTIONS = {
     "LIN" : kernels.LIN,
-    "CONST" : kernels.CONST,
     "PER" : kernels.PER,
     "SE" : kernels.SE,
     "RQ" : kernels.RQ,
+    "CONST" : kernels.CONST,
+    "WN" :kernels.WN,
 
 }
 
@@ -140,20 +136,20 @@ def log_cholesky_l_test(X,Y,params,kernel):
             num += KERNELS_LENGTH[op[1:]]
     decomposed, _jitter,loop = False, 1e-4 , 0
     while not decomposed and loop < 5 :
-        loop +=1
         try :
             _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+_jitter*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
             decomposed = True 
         except Exception as e :
+            loop +=1
             print("Cholesky decomposition failed trying with a more important jitter")
-            _jitter = tf.random.uniform([1], minval=1e-3, maxval=1, dtype=_precision, seed=None, name=None)
+            _jitter = tf.random.uniform([1], minval=1e-1, maxval=1, dtype=_precision, seed=None, name=None)
     _temp = tf.cast(tf.linalg.solve(_L, Y),dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp),dtype=_precision)
     loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.trace(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
     return loss
 
 
-def train_step(model,iteration,X_train,Y_train,kernels_name):
+def train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
     with tf.GradientTape(persistent=False) as tape :
         tape.watch(model.variables)
         val = model(X_train,Y_train,kernels_name)
@@ -165,7 +161,7 @@ def train_step(model,iteration,X_train,Y_train,kernels_name):
     return val
 
 
-def train_step_single(model,iteration,X_train,Y_train,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
+def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
     with tf.GradientTape(persistent=False) as tape :
         tape.watch(model.variables)
         val = model(X_train,Y_train)  

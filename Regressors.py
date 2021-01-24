@@ -9,33 +9,36 @@ import GPy
 import sys 
 from utils import *
 import os 
-import kernels
+import kernels as kernels 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
 PI = m.pi
+_precision = tf.float64
 
 KERNELS_FUNCTIONS = {
     "LIN" : kernels.LIN,
-    "WN" : kernels.WN,
     "PER" : kernels.PER,
     "SE" : kernels.SE,
+    "RQ" : kernels.RQ,
+    "CONST" : kernels.CONST,
+    "WN": kernels.WN,
 
 }
 
 class PeriodicRegressor(object):
     def __init__(self):
         self._l = tf.compat.v1.get_variable('l',
-                   dtype=tf.float32,
+                   dtype=_precision,
                    shape=(1,),
-                   initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+                   initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
         self._p = tf.compat.v1.get_variable('p',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
         self._sigma = tf.compat.v1.get_variable('sigma',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
 
 
     @tf.function
@@ -68,9 +71,9 @@ class LinearRegressor(object) :
 
     def __init__(self) :
         self._c = tf.compat.v1.get_variable('c',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=5.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
                    
     @tf.function
     def __call__(self,X_train,Y_train):
@@ -83,9 +86,9 @@ class LinearRegressor(object) :
 
 
     def predict(self,X_train,Y_train,X_s):
-        X_train = tf.cast(X_train,dtype=tf.float32)
-        Y_train = tf.cast(Y_train,dtype=tf.float32)
-        X_s = tf.cast(X_s,dtype=tf.float32)
+        X_train = tf.cast(X_train,dtype=_precision)
+        Y_train = tf.cast(Y_train,dtype=_precision)
+        X_s = tf.cast(X_s,dtype=_precision)
         cov = kernels.LIN(X_train,X_train,c=self._c)
         cov_ss =  kernels.LIN(X_s,X_s,c=self._c)
         cov_s  = kernels.LIN(X_train,X_s,c=self._c)
@@ -105,13 +108,13 @@ class SquaredExpRegressor(object) :
 
     def __init__(self) :
         self._l = tf.compat.v1.get_variable('l',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
         self._sigma = tf.compat.v1.get_variable('sigmab',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=100.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
                     
 
     @tf.function
@@ -143,17 +146,17 @@ class WhiteNoiseRegressor(object) :
 
     def __init__(self) :
         self._sigma = tf.compat.v1.get_variable('sigma',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     shape=(1,),
-                    initializer=tf.random_uniform_initializer(minval=1., maxval=10.))
+                    initializer=tf.random_uniform_initializer(minval=1e-5, maxval=1.))
         self._N = tf.compat.v1.get_variable('unused_variable',
-                    dtype=tf.float32,
+                    dtype=_precision,
                     initializer=0.0)
                     
     @tf.function
     def __call__(self,X_train,Y_train):
         params={"sigma":self._sigma}
-        return log_cholesky_l(X_train,Y_train,params,kernel="WN")
+        return log_cholesky_l(X_train,Y_train,params,kernel="CONST")
 
 
     def predict(self,X_train,Y_train,X_s):
@@ -177,14 +180,28 @@ class WhiteNoiseRegressor(object) :
 
 
 class CustomModel(object):
-    def __init__(self,params):
+    def __init__(self,params,existing=None):
         for attr in params.keys() :
             pars = params[attr]
             for var in pars :
-                self.__dict__[var] = tf.compat.v1.get_variable(var,
-                        dtype=tf.float32,
-                        shape=(1,),
-                        initializer=tf.random_uniform_initializer(minval=1., maxval=1.))
+                if existing is  None :
+                    self.__dict__[var] = tf.compat.v1.get_variable(var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
+                else :
+                    if var in existing.keys() :
+                        self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
+                    else :
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
+
+    @property
+    def initialisation_values(self):
+        return dict({k:v for k,v in zip(list(vars(self).keys()),list(vars(self).values()))})
+
     @property
     def variables(self):
         return vars(self).values()
@@ -201,7 +218,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    @tf.function
+    #@tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
@@ -214,12 +231,12 @@ class CustomModel(object):
             print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))
 
 
-   
+
     def predict(self,X_train,Y_train,X_s,kernels_name):
         params= self._variables
-        X_train = tf.Variable(X_train,dtype=tf.float32)
-        Y_train = tf.Variable(Y_train,dtype=tf.float32)
-        X_s = tf.Variable(X_s,dtype=tf.float32)
+        X_train = tf.Variable(X_train,dtype=_precision)
+        Y_train = tf.Variable(Y_train,dtype=_precision)
+        X_s = tf.Variable(X_s,dtype=_precision)
         cov = self._get_cov(X_train,X_train,kernels_name,params)
         cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
@@ -250,10 +267,10 @@ class CustomModel(object):
 
     def compute_BIC(self,X_train,Y_train,kernels_name):
         params= self._variables
-        n =tf.Variable(X_train.shape[0],dtype=tf.float32)
-        k = tf.Variable(len(kernels_name),dtype=tf.float32)
+        n =tf.Variable(X_train.shape[0],dtype=_precision)
+        k = tf.Variable(len(kernels_name),dtype=_precision)
         ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
-        return k*tf.math.log(n) + 2*ll
+        return  -ll - 0.5*k*tf.math.log(k)
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
         try :

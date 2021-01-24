@@ -31,38 +31,41 @@ config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 
-
+lr_list = np.linspace(0.001,1,101)
 
 KERNELS_LENGTH = {
-    "LIN" : 1,
-    "CONST" : 1,
+    "LIN" : 3,
     "SE" : 2,
     "PER" :3,
+    #"CONST" : 1,
+    #"WN" : 1,
     "RQ" : 3,
 }
 
 KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c"]},
-    "CONST" : {"parameters":["const_sigma"]},
+    "LIN" : {"parameters_lin":["lin_c","lin_sigmav","lin_sigmab"]},
+    #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
+    #"WN" : {"paramters_Wn":["white_noise_sigma"]}
     "RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
 }
 
 
 KERNELS_OPS = {
     "*LIN" : "mul",
-    "*CONST" : "mul",
     "*SE" : "mul",
     "*PER" :"mul",
     "+LIN" : "add",
-    "+CONST" : "add",
     "+SE" : "add",
     "+PER" : "add",
+    #"+CONST" :"add",
+    #"*CONST" : "mul",
+    #"+WN" :"add",
+    #"*WN" : "mul",
     "+RQ" : "add",
     "*RQ" : "mul",
 }
-
 
 
 
@@ -96,15 +99,30 @@ def _preparekernel(_kernel_list):
 def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="SGD"):
     best = 10e40
     loop,base_model = 0,model
+    lr = 0.01
+    old_val,val,lim = 0,0,1.5
     if mode == "SGD" :
         while loop < nb_restart :
             try :
                 model = base_model
                 if verbose :
-                    for iteration in range(1,nb_iter):
-                        val = train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER)
+                    for iteration in range(0,nb_iter):
+                        if loop > 10 :
+                            OPTIMIZER.learning_rate.assign(0.001) 
+                        val,grad = train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER)
+                        if np.isnan(val) :
+                            loop += 1
+                            break 
+                        """if val < 1000 : lr = 0.001
+                        if val < 10 or np.isnan(val) : new_lr = 0.00001                            
+                        if old_val > val*lim and lr > 0.00001 : 
+                            lr = lr/10
+                            lim = 10
+                            lim = 100
+                        if old_val > val * 100 : lr = 0.001
+                        old_val = val"""
                         sys.stdout.write("\r"+"="*int(iteration/nb_iter*50)+">"+"."* int((nb_iter-iteration)/nb_iter*50)+"|" \
-                            +" * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} ".format(val[0][0],nb_iter,loop+1,nb_restart))
+                            +" * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} with lr of: {}".format(val[0][0],iteration,loop+1,nb_restart,lr))
                         sys.stdout.flush()
                     sys.stdout.write("\n")
                     sys.stdout.flush()
@@ -113,6 +131,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                         val = train_step(model,iteration,X_train,Y_train,kernels_name)
             except Exception as e :
                 print(e)
+                loop += 1
             if val  < best :
                 best =  val
                 best_model = model
@@ -155,6 +174,8 @@ def _prune(tempbest,rest):
 def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
                                         nb_by_step,prune,verbose,OPTIMIZER,unique=False,single=False,initialisation_restart=5):
     j=0
+    lr = 0.1
+    init_values = BEST_MODELS["init_values"] 
     try :
         if not unique : _kernel_list = list(combi)
         else : _kernel_list = list([combi])
@@ -164,16 +185,20 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         kernels = _preparekernel(_kernel_list)
         if kernels_name[0] != "*" :
             while true_restart < initialisation_restart :
-                model=CustomModel(kernels)
-                model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose)
-                BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-                if BIC < BEST_MODELS["score"]  : 
-                    BEST_MODELS["model_name"] = kernels_name
-                    BEST_MODELS["model_list"] = _kernel_list
-                    BEST_MODELS["model"] = model
-                    BEST_MODELS["score"] = BIC 
-                TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]  
-                true_restart += 1                         
+                try :
+                    model=CustomModel(kernels,init_values)
+                    model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose)
+                    BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
+                    if BIC > BEST_MODELS["score"]  or np.isnan(BIC) : 
+                        BEST_MODELS["model_name"] = kernels_name
+                        BEST_MODELS["model_list"] = _kernel_list
+                        BEST_MODELS["model"] = model
+                        BEST_MODELS["score"] = BIC 
+                        BEST_MODELS["init_values"] =  model.initialisation_values
+                    TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]  
+                    true_restart += 1     
+                except Exception :
+                    pass                    
     except Exception as e:
         print("error with kernel :",kernels_name)
         print(e)
@@ -191,7 +216,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
         with open(name, 'rb') as f :
             COMB = pickle.load(f)
     kernels_name,_kernel_list = "",[]
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     iteration=0
     j = 0
@@ -227,21 +252,29 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     return model,BEST_MODELS["model_list"]
 
 
-def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06),nb_restart=7,nb_iter=4,verbose=False):
+def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learning_rate=0.001),nb_restart=7,nb_iter=4,verbose=False,initialisation_restart=2,reduce_data=False,do_plot=False):
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
+    if reduce_data :
+            mean, var = tf.nn.moments(X_train,axes=[0])
+            X_train = (X_train - mean) / var
+            mean, var = tf.nn.moments(Y_train,axes=[0])
+            Y_train = (Y_train - mean) / var
+            mean, var = tf.nn.moments(X_s,axes=[0])
+            X_s = (X_s - mean) / var
     assert kernel[0][0] == "+" , "First kernel of the list must start with + "
-    iteration = 0
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e400}
+    iteration = 1
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     full_length= 1
-    iteration+=1
     BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS, \
-        TEMP_BEST_MODELS=TEMP_BEST_MODELS,nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,OPTIMIZER=OPTIMIZER,nb_by_step=None,prune=False,unique=True,single=True)
+        TEMP_BEST_MODELS=TEMP_BEST_MODELS,nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,OPTIMIZER=OPTIMIZER,nb_by_step=None,prune=False,unique=True,single=True,initialisation_restart=initialisation_restart)
     sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(kernel))
     sys.stdout.flush()
     model=BEST_MODELS["model"]
     model.viewVar(kernel)
     print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,kernel)))
+    mu,cov = model.predict(X_train,Y_train,X_s,kernel)
+    if do_plot : model.plot(mu,cov,X_train,Y_train,X_s,kernel)
     return model,kernel
 
 
@@ -262,7 +295,7 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
         pool.starmap(analyse,params)
 
 
-def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adamax(0.0005), \
+def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
                         verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5):
     if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")
     if nb_by_step is  not None and nb_by_step > loop_size : raise ValueError("Loop size must be superior to nb_by_step")   
@@ -278,11 +311,15 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
     t0 = time.time()
     if straigth :
         i=-1
-        model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth)
+        model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth,initialisation_restart)
+        if do_plot :
+            mu,cov = model.predict(X_train,Y_train,X_s,kernels)
+            model.plot(mu,cov,X_train,Y_train,X_s,kernels)
+            plt.show()
         return model,kernels
     if not experimental_multiprocessing :
         i=-1
-        model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER)
+        model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart)
         name,name_kernel = './best_models/best_model', kernels
         if save_model :
             with open(name, 'wb') as f :
@@ -325,8 +362,7 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
             if plot :
                 rpt.show.display(np.array(ts), my_bkps, figsize=(10, 6))
                 plt.show()
-            start_borne = 0
-            full_entro = 0
+            start_borne,full_entro = 0,0
             for borne in my_bkps :
                 val = block_entropy(ts[start_borne:borne], k=1)   
                 full_entro = val + full_entro
@@ -343,7 +379,7 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
     return dic
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=10,initialisation_restart=5):
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
     kerns = tuple((KERNELS_OPS.keys()))
     COMB,count = [],0
     combination =  list(itertools.combinations(kerns, 1))
@@ -351,15 +387,15 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     for comb in combination :
         if comb[0][0] != "*" : COMB.append(comb)
     for loop in range(1,depth) :
-        TEMP_MODELS = {"model_name":[],"model_list":[],'model':[],"score":10e40}
         TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
         count += 1
         loop += 1
         if loop > 1 :
             COMB = search_and_add(tuple(BEST_MODELS["model_list"]))
+            print(COMB)
         iteration=0
         j = 0
-        while j <  len(COMB)-1 :
+        while j <  len(COMB) :
             try : combi = COMB[j]
             except Exception as e :break
             iteration+=1
@@ -369,7 +405,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             sys.stdout.flush()
             sys.stdout.write("\n")
             sys.stdout.flush()
-        if TEMP_MODELS["score"] < BEST_MODELS["score"] :
+        if TEMP_MODELS["score"] > BEST_MODELS["score"] :
             BEST_MODELS = TEMP_MODELS
         print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop-1))
     model=BEST_MODELS["model"]
@@ -393,20 +429,53 @@ def search_and_add(_kernel_list):
     return COMB
 
 
+def mse(y,ypred):
+    return np.mean(np.square(y-ypred))
 
 if __name__ =="__main__" :
 
-    Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
+    #Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
     
-    Y = np.array(pd.read_csv("../data/periodic.csv",sep=",")["x"]).reshape(-1, 1)
+    Y_a = np.array(pd.read_csv("./data/co2.csv")["x"]).reshape(-1, 1)
+    Y = Y_a[:-30]
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
     t0 = time.time()
-    model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False,straigth=True,depth=10,initialisation_restart=2)
+    model,kernel = single_model(X,Y,X_s,["+LIN","+PER","+RQ","*SE"],nb_restart=1,nb_iter=200,verbose=True,initialisation_restart=2,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.1))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=5,nb_restart=1,verbose=True,nb_iter=600,initialisation_restart=2,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.0001))
     print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()
+    print('time took: {} seconds'.format(time.time()-t0))
+    """k =( GPy.kern.RatQuad(input_dim=1) * GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.Exponential(input_dim=1)
+    m = GPy.models.GPRegression(X, Y, k, normalizer=False)
+    m.optimize()
+    print('time took: {} seconds'.format(time.time()-t0))
+    print(m)
+    m.plot()"""
+    """HISTORY = pd.DataFrame(columns=["learning_rate","score"])
+    for lr in lr_list :
+        try :
+            model,kernel = single_model(X,Y,X_s,["+RQ","+PER","*SE"],nb_restart=25,nb_iter=20,verbose=False,initialisation_restart=3,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(learning_rate=lr))
+            mu,cov = model.predict(X,Y,X_s,kernel)
+            mean,_,_ = get_values(mu.numpy(),cov.numpy(),nb_samples=100)
+            HISTORY.loc[len(HISTORY)+1]=[lr,mse(mean.reshape(-1)[-30 :],Y_a[-30:])]
+        except Exception as e:
+            print(e)
+            HISTORY.loc[len(HISTORY)+1]=[lr,mse(mean[-30 :],Y_a[-30:])] 
+
+    HISTORY.to_csv("./optimization_results/RMSprop_airline.csv")
+    plt.plot(HISTORY["learning_rate"],HISTORY["score"])
+    plt.show()"""
+ 
+
+    """model,kernel = single_model(X,Y,X_s,["+RQ","+PER"],nb_restart=15,nb_iter=5,verbose=False,initialisation_restart=3,reduce_data=False,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.6))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=5,nb_restart=50,nb_iter=5,initialisation_restart=5,reduce_data=False)
+    print('time took: {} seconds'.format(time.time()-t0))
+    mu,cov = model.predict(X,Y,X_s,kernel)
+    mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
+    print(mse(Y[-30:],mean[:30]))"""
     """model,kernel = launch_analysis(X,Y,X_s,prune=False,reduce_data=False)
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
