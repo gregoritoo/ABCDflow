@@ -24,6 +24,8 @@ import bocd
 import ruptures as rpt
 from pyinform.blockentropy import block_entropy
 
+def mse(y,ypred):
+    return np.mean(np.square(y-ypred))
 
 PI = m.pi
 _precision = tf.float64
@@ -32,14 +34,15 @@ config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 
 lr_list = np.linspace(0.001,1,101)
+borne = -1*10e40
 
 KERNELS_LENGTH = {
     "LIN" : 3,
     "SE" : 2,
     "PER" :3,
     #"CONST" : 1,
-    #"WN" : 1,
-    "RQ" : 3,
+    "WN" : 1,
+    #"RQ" : 3,
 }
 
 KERNELS = {
@@ -47,8 +50,8 @@ KERNELS = {
     #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    #"WN" : {"paramters_Wn":["white_noise_sigma"]}
-    "RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
+    "WN" : {"paramters_Wn":["white_noise_sigma"]}
+    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
 }
 
 
@@ -61,10 +64,10 @@ KERNELS_OPS = {
     "+PER" : "add",
     #"+CONST" :"add",
     #"*CONST" : "mul",
-    #"+WN" :"add",
-    #"*WN" : "mul",
-    "+RQ" : "add",
-    "*RQ" : "mul",
+    "+WN" :"add",
+    "*WN" : "mul",
+    #"+RQ" : "add",
+    #"*RQ" : "mul",
 }
 
 
@@ -123,7 +126,7 @@ def _preparekernel(_kernel_list):
 
 
 
-def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="SGD"):
+def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="f"):
     '''
         Train the model according to the parameters 
     inputs :
@@ -139,7 +142,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
     outputs:
         best_model : dict, dictionnary containing the best model and it score
     '''
-    best = 10e40
+    best = borne
     loop,base_model = 0,model
     lr = 0.1
     old_val,val,lim = 0,0,1.5
@@ -171,7 +174,16 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                 best_model = model
             loop += 1
     else :
-        params = run(l2_regression_with_lbfgs)
+        while loop < nb_restart :
+            try :
+                #results = train_step_lfgbs(X_train,Y_train,model._opti_variables,kernels_name)
+                func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
+                init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
+                results = tfp.optimizer.lbfgs_minimize(value_and_gradients_function=func, initial_position=init_params,tolerance=1e-8)
+                best_model = model
+            except Exception as e:
+                print(e)
+            loop+=1
     return best_model
 
 
@@ -242,6 +254,8 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
     outputs:
         BEST_MODELS : dict, dictionnary containing the best model and it score
     '''
+    """X_full = X_train
+    Y_full = Y_train"""
     j=0
     lr = 0.1
     init_values = BEST_MODELS["init_values"] 
@@ -258,13 +272,22 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                     model=CustomModel(kernels,init_values)
                     model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose)
                     BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-                    if BIC > BEST_MODELS["score"]  or np.isnan(BIC) : 
+                    """mu,cov = model.predict(X_train,Y_train,X_full,_kernel_list)
+                    try :
+                        mean,_,_= get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
+                    except Exception as e:
+                        print(e)
+                        break
+                    BIC = mse(X_full.numpy()[-30:],mean[-30:])
+                    print(BIC)"""
+                    if  BIC > BEST_MODELS["score"]  : 
                         BEST_MODELS["model_name"] = kernels_name
                         BEST_MODELS["model_list"] = _kernel_list
                         BEST_MODELS["model"] = model
                         BEST_MODELS["score"] = BIC 
                         BEST_MODELS["init_values"] =  model.initialisation_values
-                    TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],int(BIC.numpy()[0])]  
+                    TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])]  
+                    #TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]  
                     true_restart += 1     
                 except Exception :
                     pass                    
@@ -277,7 +300,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         return BEST_MODELS
 
 
-def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER):
+def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart):
     '''
         Compare models for each step of the training, and keep the best model
     inputs :
@@ -303,7 +326,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
         with open(name, 'rb') as f :
             COMB = pickle.load(f)
     kernels_name,_kernel_list = "",[]
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     iteration=0
     j = 0
@@ -322,13 +345,13 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
                 _to_add = _before_len - len(COMB)-1
                 iteration += _to_add
             BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
-                                                                nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER)
+                                                                nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart=initialisation_restart)
             TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(by=['score'],ascending=True)[:nb_by_step]
             sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
             sys.stdout.flush()
         else :  
             COMB,j = COMB[1 :],0
-            BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER)
+            BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart)
             sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
             sys.stdout.flush()
         sys.stdout.write("\n")
@@ -342,6 +365,22 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
 def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learning_rate=0.001),nb_restart=7,nb_iter=4,verbose=False,initialisation_restart=2,reduce_data=False,do_plot=False):
     """
         Train an process without the search process
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        X_s :  Tensor, points to predict 
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        nb_restart : int, retrain on same data (epoch)
+        kernels : string, updated kernel name   ex +LIN*PER*PER
+        OPTIMIZER : tf optimizer object  
+        verbose : Bool, print training process
+        reduce_data : Bool, whitenning centering data before processing
+        do_plot :  Bool, plot prediction after training
+    outputs:
+        model : CustomModel object, best model
+        kernel : list, array of best model
+
     """
     X_train,Y_train,X_s = tf.Variable(X,dtype=_precision),tf.Variable(Y,dtype=_precision),tf.Variable(X_s,dtype=_precision)
     if reduce_data :
@@ -353,7 +392,7 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
             X_s = (X_s - mean) / var
     assert kernel[0][0] == "+" , "First kernel of the list must start with + "
     iteration = 1
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     full_length= 1
     BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS, \
@@ -366,7 +405,6 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
     mu,cov = model.predict(X_train,Y_train,X_s,kernel)
     if do_plot : model.plot(mu,cov,X_train,Y_train,X_s,kernel)
     return model,kernel
-
 
 
 
@@ -390,6 +428,31 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
                         verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5):
+    '''
+        Launch the analysis
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        prune : Bool, keep only nb_by_step best models at each loop_size step 
+        nb_restart : int, retrain on same data (epoch)
+        do_plot : Bool, plot the mean,cov from the best model 
+        save_model : Bool, save the model in the best_model/ directory 
+        OPTIMIZER : tf optimizer object 
+        i :  int;  kernel position in the list 
+        verbose : Bool, print training process
+        mode : string , training mode 
+        loop_size : int, number of testing to do before prunning 
+        nb_workers : int, number of wokers 
+        experimental_multiprocessing : Bool, launch multiprocessing training
+        straigth : Bool, keep only the best model at eatch step 
+        depth : Number of kernel to use ex depth=2 => +PER*LIN 
+        initialisation_restart : int, number of restart training with different initiatlisation parameters
+    outputs:
+        model : CustomModel object, best model
+        kernels : list, array of best model
+    '''
     if prune and nb_by_step is None : raise ValueError("As prune is True you need to precise nb_by_step")
     if nb_by_step is  not None and nb_by_step > loop_size : raise ValueError("Loop size must be superior to nb_by_step")   
     if not straigth : print("You chooosed straightforward training")
@@ -411,7 +474,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=True,sav
             plt.show()
         return model,kernels
     if not experimental_multiprocessing :
-        i=-1
+        i=-1 
         model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart)
         name,name_kernel = './best_models/best_model', kernels
         if save_model :
@@ -457,10 +520,10 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
                 rpt.show.display(np.array(ts), my_bkps, figsize=(10, 6))
                 plt.show()
             start_borne,full_entro = 0,0
-            for borne in my_bkps :
-                val = block_entropy(ts[start_borne:borne], k=1)   
+            for end_borne in my_bkps :
+                val = block_entropy(ts[start_borne:end_borne], k=1)   
                 full_entro = val + full_entro
-                start_borne = borne
+                start_borne = end_borne
             if full_entro == 0 : break
             elif full_entro < min_val :
                 min_val = full_entro
@@ -473,7 +536,31 @@ def changepoint_detection(ts,percent=0.05,plot=True,num_c=4):
     return dic
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=10,initialisation_restart=5):
-    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score":-10e40,"init_values":None}
+    """
+        FInd best combinaison of kernel that descrive the training data , keep one best model at each step 
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        X_s :  Tensor, points to predict 
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        nb_restart : int, retrain on same data (epoch)
+        kernels : string, updated kernel name   ex +LIN*PER*PER
+        i :  int;  kernel position in the list 
+        verbose : Bool, print training process
+        loop_size : int, number of testing to do before prunning 
+        OPTIMIZER : tf optimizer object  
+        verbose : Bool, print training process
+        reduce_data : Bool, whitenning centering data before processing
+        do_plot :  Bool, plot prediction after training
+        depth : Number of kernel to use ex depth=2 => +PER*LIN 
+        initialisation_restart : int, number of restart training with different initiatlisation parameters
+    outputs:
+        model : CustomModel object, best model
+        kernel : list, array of best model
+
+    """
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     kerns = tuple((KERNELS_OPS.keys()))
     COMB,count = [],0
     combination =  list(itertools.combinations(kerns, 1))
@@ -499,7 +586,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             sys.stdout.flush()
             sys.stdout.write("\n")
             sys.stdout.flush()
-        if TEMP_MODELS["score"] > BEST_MODELS["score"] :
+        if TEMP_MODELS["score"] < BEST_MODELS["score"] :
             BEST_MODELS = TEMP_MODELS
         print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop-1))
     model=BEST_MODELS["model"]
@@ -528,33 +615,36 @@ def search_and_add(_kernel_list):
     return COMB
 
 
-def mse(y,ypred):
-    return np.mean(np.square(y-ypred))
 
 if __name__ =="__main__" :
 
-    Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
-    #X = np.linspace(0,100,100).reshape(-1, 1)
-    #Y = 3*(np.sin(X)).reshape(-1, 1)
-    Y_a = np.array(pd.read_csv("./data/co2.csv")["x"]).reshape(-1, 1)
+    #Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
+    X = np.linspace(0,100,100).reshape(-1, 1)
+    Y = 3*(np.sin(X)).reshape(-1, 1)
+    Y_a = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1, 1)
     Y = Y_a[:-30]
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+60,len(Y)+60).reshape(-1, 1)
     t0 = time.time()
-    model,kernel = single_model(X,Y,X_s,["+LIN","+PER","*SE"],nb_restart=1,nb_iter=200,verbose=True,initialisation_restart=2,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
-    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=5,nb_restart=1,verbose=False,nb_iter=40,initialisation_restart=10,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    model,kernel = single_model(X,Y,X_s,["+PER","+LIN","*SE"],nb_restart=1,nb_iter=400,verbose=True,initialisation_restart=7,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=10,nb_restart=1,verbose=False,nb_iter=100,initialisation_restart=5,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    mu,cov = model.predict(X,Y,X_s,kernel)
+    model.plot(mu,cov,X,Y,X_s,kernel)
+    plt.show()
+    """model,kernel = single_model(X,Y,X_s,["+LIN","+PER"],nb_restart=1,nb_iter=100,verbose=True,initialisation_restart=5,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=3,nb_restart=1,verbose=False,nb_iter=100,initialisation_restart=5,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
     print('time took: {} seconds'.format(time.time()-t0))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()
     t0 = time.time()
-    k = (GPy.kern.Linear(input_dim=1) + GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.RBF(input_dim=1)
+    k = GPy.kern.Linear(input_dim=1) + GPy.kern.StdPeriodic(input_dim=1)
     m = GPy.models.GPRegression(X, Y, k, normalizer=False)
-    m.optimize_restarts(1)
+    m.optimize_restarts(20)
     print('time took: {} seconds'.format(time.time()-t0))
     print(m)
     m.plot()
-    plt.show()
+    plt.show()"""
     print('time took: {} seconds'.format(time.time()-t0))
     """k =( GPy.kern.RatQuad(input_dim=1) * GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.Exponential(input_dim=1)
     m = GPy.models.GPRegression(X, Y, k, normalizer=False)

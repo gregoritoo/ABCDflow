@@ -188,7 +188,7 @@ class CustomModel(object):
                     self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
+                            initializer=tf.random_uniform_initializer(minval=10, maxval=100.))
                 else :
                     if var in existing.keys() :
                         self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
@@ -196,7 +196,7 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
+                            initializer=tf.random_uniform_initializer(minval=10, maxval=100.))
 
     @property
     def initialisation_values(self):
@@ -234,9 +234,12 @@ class CustomModel(object):
 
     def predict(self,X_train,Y_train,X_s,kernels_name):
         params= self._variables
-        X_train = tf.Variable(X_train,dtype=_precision)
-        Y_train = tf.Variable(Y_train,dtype=_precision)
-        X_s = tf.Variable(X_s,dtype=_precision)
+        try :
+            X_train = tf.Variable(X_train,dtype=_precision)
+            Y_train = tf.Variable(Y_train,dtype=_precision)
+            X_s = tf.Variable(X_s,dtype=_precision)
+        except Exception as e:
+            pass
         cov = self._get_cov(X_train,X_train,kernels_name,params)
         cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
@@ -270,7 +273,7 @@ class CustomModel(object):
         n =tf.Variable(X_train.shape[0],dtype=_precision)
         k = tf.Variable(len(kernels_name),dtype=_precision)
         ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
-        return  -ll - 0.5*k*tf.math.log(k)
+        return  -ll - 0.5*k*tf.math.log(n)
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
         try :

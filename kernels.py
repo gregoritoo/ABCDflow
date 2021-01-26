@@ -30,12 +30,6 @@ def LIN(x,y,params):
     w = tf.math.multiply(y2,x2) 
     return sigmab+sigmav*w
 
-"""def LIN(x,y,params):
-    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    c,sigmab,sigmav = params[0],params[1],params[2]
-    lin = tfp.math.psd_kernels.Linear(bias_variance=sigmav, slope_variance=sigmab, shift=c, \
-        feature_ndims=1,validate_args=False, name='Linear')
-    return lin.apply(x, y, example_ndims=0, name='apply')"""
 
 def CONST(x,y,sigma):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
@@ -73,16 +67,6 @@ def PER(x,y1,params):
     return w
 
 
-"""def PER(x,y,params):
-    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    l,p,sigma = params[0],params[1],params[2]
-    per = tfp.math.psd_kernels.ExpSinSquared(amplitude=sigma, length_scale=l, period=p,\
-                    feature_ndims=1,validate_args=False, name='ExpSinSquared')
-    return per.apply(x, y, example_ndims=0, name='apply')"""
-
-    
-
-
 def SE(x,y1,params):
     l,sigma = params[0],params[1]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
@@ -94,12 +78,6 @@ def SE(x,y1,params):
     const_1 = 0.5*tf.cast(-1/tf.math.square(l),dtype=_precision)
     return sigma*tf.math.exp(tf.math.square(tf.math.subtract(y2,x2))*const_1)
 
-"""def SE(x,y,params):
-    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    l,sigma = params[0],params[1]
-    se = tfp.math.psd_kernels.ExponentiatedQuadratic(amplitude=sigma, length_scale=l, feature_ndims=1, \
-                            validate_args=False,name='SquaredExponential')
-    return se.apply(x, y, example_ndims=0, name='apply')"""
 
 
 
@@ -119,12 +97,7 @@ def RQ(x,y,params):
     return sigma*w
 
 
-"""def RQ(x,y,params):
-    assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    l,sigma,alpha = params[0],params[1],params[2]
-    rq = tfp.math.psd_kernels.RationalQuadratic(amplitude=sigma, length_scale=l, scale_mixture_rate=alpha, feature_ndims=1, \
-                            validate_args=False, name='RationalQuadratic')   
-    return rq.apply(x, y, example_ndims=0, name='apply')"""
+# Still to do, implement sigmoid kernel
 
 def CP(x,y,params):
     pass 
