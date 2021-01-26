@@ -191,13 +191,17 @@ def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.
 
 
 
-
-
 def loss_function(x_u_train, u_train, network):
     u_pred = tf.cast(network(x_u_train), dtype=tf.float32)
     loss_value = tf.reduce_mean(tf.square(u_train - u_pred))
     return tf.cast(loss_value, dtype=tf.float32)
 
+
+
+
+""" function factory is a adapted version of  :
+    https://gist.github.com/piyueh/712ec7d4540489aad2dcfb80f9a54993
+"""
 
 def function_factory(model, loss_f, X, Y,params,kernel):
     """A factory to create a function required by tfp.optimizer.lbfgs_minimize.
@@ -238,6 +242,7 @@ def function_factory(model, loss_f, X, Y,params,kernel):
         """
         
         params = tf.dynamic_partition(params_1d, part, n_tensors)
+        
         for i, (shape, param) in enumerate(zip(shapes, params)):
             model._opti_variables[i].assign(tf.cast(tf.reshape(param, shape), dtype=_precision))
 
@@ -265,11 +270,11 @@ def function_factory(model, loss_f, X, Y,params,kernel):
 
         # print out iteration & loss
         f.iter.assign_add(1)
-        tf.print("Iter:", f.iter, "loss:", loss_value)
+        #tf.print("Iter:", f.iter, "loss:", loss_value)
 
         # store loss value so we can retrieve later
         tf.py_function(f.history.append, inp=[loss_value], Tout=[])
-        return loss_value, grads
+        return np.array(loss_value.numpy(), order='F'),np.array(grads.numpy(), order='F')
 
     # store these information as members so we can use them outside the scope
     f.iter = tf.Variable(0)

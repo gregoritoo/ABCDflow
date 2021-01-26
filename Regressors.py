@@ -188,7 +188,7 @@ class CustomModel(object):
                     self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=10, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
                 else :
                     if var in existing.keys() :
                         self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
@@ -196,7 +196,7 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=10, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1, maxval=10.))
 
     @property
     def initialisation_values(self):
@@ -218,7 +218,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    #@tf.function
+    @tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
