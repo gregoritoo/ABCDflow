@@ -157,21 +157,20 @@ def log_cholesky_l_test(X,Y,params,kernel):
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov  = tf.math.multiply(cov,method(X,X,[params[p] for p in par]))
             num += KERNELS_LENGTH[op[1:]]
-    decomposed, _jitter,loop,printed = False, 1e-9 , 0,True
+    decomposed, _jitter,loop = False, 1e-4 , 0
     while not decomposed and loop < 5 :
         try :
             _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+_jitter*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
             decomposed = True 
         except Exception as e :
             loop +=1
-            if not printed :
-                print("Cholesky decomposition failed trying with a more important jitter")
-                printed = True
-            _jitter = tf.random.uniform([1], minval=1e-8, maxval=1, dtype=_precision, seed=None, name=None) 
+            #print("Cholesky decomposition failed trying with a more important jitter")
+            _jitter = tf.random.uniform([1], minval=1e-1, maxval=1, dtype=_precision, seed=None, name=None) + 1*(loop-1)
     _temp = tf.cast(tf.linalg.solve(_L, Y),dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp),dtype=_precision)
     loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.trace(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
     return loss
+
 
 
 def train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
@@ -252,7 +251,6 @@ def function_factory(model, loss_f, X, Y,params,kernel):
         """
         
         params = tf.dynamic_partition(params_1d, part, n_tensors)
-        
         for i, (shape, param) in enumerate(zip(shapes, params)):
             model._opti_variables[i].assign(tf.cast(tf.reshape(param, shape), dtype=_precision))
 
@@ -279,9 +277,9 @@ def function_factory(model, loss_f, X, Y,params,kernel):
         grads = tf.dynamic_stitch(idx, grads)
 
         # print out iteration & loss
-        f.iter.assign_add(1)
+        #f.iter.assign_add(1)
         #tf.print("Iter:", f.iter, "loss:", loss_value)
-
+       
         # store loss value so we can retrieve later
         tf.py_function(f.history.append, inp=[loss_value], Tout=[])
         return np.array(loss_value.numpy(), order='F'),np.array(grads.numpy(), order='F')

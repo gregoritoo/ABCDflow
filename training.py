@@ -136,16 +136,20 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
     elif "lfbgs" :
         while loop < nb_restart :
             try :
+                if verbose : 
+                    sys.stdout.write("\r"+"Iteration n°{}/{}".format(loop,nb_restart))
+                    sys.stdout.flush()
                 #results = train_step_lfgbs(X_train,Y_train,model._opti_variables,kernels_name)
                 func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
                 init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
                 #init_params = tf.cast(init_params, dtype=_precision)
                 # train the model with L-BFGS solver
-                bnds = tuple([(0, None) for _ in init_params])
+                bnds = tuple([(1e-6, None) for _ in init_params ])
                 results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=bnds)
                 #results = tfp.optimizer.lbfgs_minimize(value_and_gradients_function=func, initial_position=init_params,tolerance=1e-8)
                 best_model = model
             except Exception as e:
+                pass
             loop+=1
     else :
         raise  NotImplementedError("Mode %s not available please choose between lfbgs or SBD")
@@ -448,7 +452,8 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         if single : _kernel_list = combi
         kernels_name = ''.join(combi)
         true_restart = 0
-        kernels = _preparekernel(_kernel_list)
+        if mode == "lfbgs" : kernels = _preparekernel(_kernel_list,scipy=True)
+        else : kernels = _preparekernel(_kernel_list)
         if kernels_name[0] != "*" :
             if not GPY : 
                 while true_restart < initialisation_restart :

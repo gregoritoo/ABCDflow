@@ -56,6 +56,8 @@ KERNELS = {
 }
 
 
+
+
 KERNELS_OPS = {
     "*LIN" : "mul",
     "*SE" : "mul",
@@ -103,7 +105,7 @@ def _addkernel(kernels_name,_kernel_list,new_k):
     _kernel_list = _kernel_list + ["+"+new_k]
     return kernels_name,_kernel_list
 
-def _preparekernel(_kernel_list):
+def _preparekernel(_kernel_list,scipy=True):
     '''
         Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
     inputs :
@@ -117,8 +119,9 @@ def _preparekernel(_kernel_list):
     for para in dic :
         for key,value in para.items() :
             if key in kernels.keys() :
-                key = key+"_"+str(i)
-                kernels.update({key:[element+"_"+str(i) for element in value]})
+                if key != "noise" :
+                    key = key+"_"+str(i)
+                    kernels.update({key:[element+"_"+str(i) for element in value]})
             else :
                 kernels.update({key:[element for element in value]})
             i+=1

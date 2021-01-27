@@ -8,7 +8,7 @@ import math as m
 import seaborn as sn
 import GPy
 import sys 
-from Regressors import * 
+from Regressors import *
 from utils import train_step
 import pandas as pd 
 from itertools import chain
