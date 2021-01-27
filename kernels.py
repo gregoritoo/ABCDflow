@@ -1,6 +1,8 @@
 import numpy as np 
 import tensorflow as tf 
 from pprint import pprint
+import logging
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
 import tensorflow_probability as tfp
 import matplotlib.pyplot as plt 
 import math as m
@@ -10,7 +12,9 @@ import sys
 import os 
 import tensorflow_probability as tfp 
 
-
+f = open(os.devnull, 'w')
+sys.stderr = f
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.FATAL)
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')

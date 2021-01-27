@@ -153,7 +153,7 @@ class WhiteNoiseRegressor(object) :
                     dtype=_precision,
                     initializer=0.0)
                     
-    @tf.function
+    #@tf.function
     def __call__(self,X_train,Y_train):
         params={"sigma":self._sigma}
         return log_cholesky_l(X_train,Y_train,params,kernel="CONST")
@@ -218,7 +218,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    @tf.function
+    #@tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)

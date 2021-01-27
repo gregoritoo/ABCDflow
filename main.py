@@ -33,20 +33,18 @@ from training import *
 
 
 
-
-
 if __name__ =="__main__" :
 
     #Y = np.sin(np.linspace(0,100,100)).reshape(-1,1)
     #X = np.linspace(0,100,100).reshape(-1, 1)
     #Y = 3*(np.sin(X)).reshape(-1, 1)
-    Y_a = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1, 1)
+    Y_a = np.array(pd.read_csv("./data/co2.csv")["x"]).reshape(-1, 1)
     Y = Y_a[:-30]
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+60,len(Y)+60).reshape(-1, 1)
     t0 = time.time()
-    model,kernel = single_model(X,Y,X_s,["+PER","+LIN"],nb_restart=1,nb_iter=400,verbose=True,initialisation_restart=20,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
-    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=True,depth=3,nb_restart=1,verbose=False,nb_iter=100,initialisation_restart=30,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    model,kernel = single_model(X,Y,X_s,["+PER","+LIN"],nb_restart=1,nb_iter=400,verbose=True,initialisation_restart=8,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
+    #model,kernel = launch_analysis(X,Y,X_s,prune=False,straigth=False,depth=3,nb_restart=1,verbose=False,nb_iter=20,initialisation_restart=20,reduce_data=False,OPTIMIZER=tf.optimizers.RMSprop(0.01))
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()

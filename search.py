@@ -2,7 +2,9 @@
 import numpy as np 
 import tensorflow as tf 
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+tf.get_logger().setLevel('INFO')
 tf.keras.backend.set_floatx('float64')
 import matplotlib.pyplot as plt 
 import math as m
@@ -40,7 +42,7 @@ KERNELS_LENGTH = {
     "SE" : 2,
     "PER" :3,
     #"CONST" : 1,
-    "WN" : 1,
+    #"WN" : 1,
     #"RQ" : 3,
 }
 
@@ -49,7 +51,7 @@ KERNELS = {
     #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    "WN" : {"paramters_Wn":["white_noise_sigma"]}
+    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
     #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
 }
 
@@ -63,8 +65,8 @@ KERNELS_OPS = {
     "+PER" : "add",
     #"+CONST" :"add",
     #"*CONST" : "mul",
-    "+WN" :"add",
-    "*WN" : "mul",
+    #"+WN" :"add",
+    #"*WN" : "mul",
     #"+RQ" : "add",
     #"*RQ" : "mul",
 }
@@ -124,7 +126,7 @@ def _preparekernel(_kernel_list):
 
 
 
-def search(kernels_name,_kernel_list,init):
+def search(kernels_name,_kernel_list,init,depth=5):
     '''
         Return all the possible combinaison of kernels starting with a '+' 
     inputs :
@@ -134,7 +136,7 @@ def search(kernels_name,_kernel_list,init):
     '''
     kerns = tuple((KERNELS_OPS.keys()))
     COMB = []
-    for i in range(1,5) :
+    for i in range(1,depth) :
         if i == 1 : combination =  list(itertools.combinations(kerns, i))
         else : combination = list(itertools.permutations(kerns, i)) 
         for comb in combination :
