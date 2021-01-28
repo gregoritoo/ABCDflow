@@ -24,7 +24,7 @@ _precision = tf.float64
 
 def LIN(x,y,params):
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    c,sigmav,sigmab = params[0],params[1],params[2]
+    c,sigmav = params[0],params[1]
     x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
     y1 = tf.math.subtract(y,c*tf.ones_like(y))
     multiply_y = tf.constant([1,x.shape[0]])
@@ -32,7 +32,7 @@ def LIN(x,y,params):
     multiply_x = tf.constant([y.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     w = tf.math.multiply(y2,x2) 
-    return sigmab+sigmav*w
+    return sigmav*w
 
 
 def CONST(x,y,sigma):

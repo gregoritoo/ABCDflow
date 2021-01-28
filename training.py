@@ -42,7 +42,7 @@ lr_list = np.linspace(0.001,1,101)
 borne = -1*10e40
 
 KERNELS_LENGTH = {
-    "LIN" : 3,
+    "LIN" : 2,
     "SE" : 2,
     "PER" :3,
     #"CONST" : 1,
@@ -51,7 +51,7 @@ KERNELS_LENGTH = {
 }
 
 KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav","lin_sigmab"]},
+    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
     #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
@@ -136,6 +136,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
     elif "lfbgs" :
         while loop < nb_restart :
             try :
+                nb_iter = max(nb_iter,500)
                 if verbose : 
                     sys.stdout.write("\r"+"Iteration n°{}/{}".format(loop,nb_restart))
                     sys.stdout.flush()
@@ -144,12 +145,14 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                 init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
                 #init_params = tf.cast(init_params, dtype=_precision)
                 # train the model with L-BFGS solver
-                bnds = tuple([(1e-6, None) for _ in init_params ])
-                results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=bnds)
+                bnds = list([(1e-6, None) for _ in range(len(model.variables)-1)])
+                bnds.append([1e-8,None])  # specific boundaries for the noise parameter
+                #options={"maxiter":nb_iter}
+                results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=tuple(bnds))
                 #results = tfp.optimizer.lbfgs_minimize(value_and_gradients_function=func, initial_position=init_params,tolerance=1e-8)
                 best_model = model
             except Exception as e:
-                pass
+                print(e)
             loop+=1
     else :
         raise  NotImplementedError("Mode %s not available please choose between lfbgs or SBD")
@@ -469,7 +472,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                                 break
                             BIC = mse(X_full.numpy()[-30:],mean[-30:])
                             print(BIC)"""
-                            if  BIC > BEST_MODELS["score"]  : 
+                            if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
                                 BEST_MODELS["model_name"] = kernels_name
                                 BEST_MODELS["model_list"] = _kernel_list
                                 BEST_MODELS["model"] = model

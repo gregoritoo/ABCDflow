@@ -38,7 +38,7 @@ borne = -1*10e40
 
 
 KERNELS_LENGTH = {
-    "LIN" : 3,
+    "LIN" : 2,
     "SE" : 2,
     "PER" :3,
     #"CONST" : 1,
@@ -47,7 +47,7 @@ KERNELS_LENGTH = {
 }
 
 KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav","lin_sigmab"]},
+    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
     #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},

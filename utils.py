@@ -37,7 +37,7 @@ OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
 _jitter = 1e-9
 _precision = tf.float64
 KERNELS_LENGTH = {
-    "LIN" : 3,
+    "LIN" : 2,
     "SE" : 2,
     "PER" :3,
     "RQ" : 3,
@@ -100,41 +100,11 @@ def get_values(mu_s,cov_s,nb_samples=100):
 
 
 def compute_posterior(y,cov,cov_s,cov_ss):
-    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+_jitter*tf.eye(cov.shape[0],dtype=_precision))),y)
-    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+_jitter*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
+    mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
+    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
     return mu,cov
 
-@tf.function
-def log_l(X,Y,params,kernel):
-    if kernel=="PER" :
-        cov = Periodic(X,Y,l=params["l"],p=params["p"],sigma=params["sigma"])+_jitter**tf.eye(X.shape[0])
-    elif kernel == "LIN" :
-        cov = Linear(X,Y,c=params["c"],sigmab=params["sigmab"],sigmav=params["sigmav"])+_jitter*tf.eye(X.shape[0])
-    elif kernel =="SE":
-        cov = exp(X,Y,l=params["l"],sigma=params["sigma"])+ _jitter*tf.eye(X.shape[0])
-    loss = -0.5*tf.matmul(tf.matmul(tf.transpose(Y),tf.linalg.inv(cov)),Y) - 0.5*tf.math.log(tf.linalg.det(cov))-0.5*X.shape[0]*tf.math.log([PI*2])
-    
-    return -loss
 
-
-def log_cholesky_l(X,Y,params,kernel):
-    params_name = list(params.keys())
-    par =params_name[0:0+KERNELS_LENGTH[kernel]]
-    params = [params[p] for p in par]
-    if kernel=="PER" :
-        cov = kernels.PER(X,X,params)+ tf.eye(X.shape[0])
-    elif kernel == "LIN" :
-        cov = kernels.LIN(X,X,params)+ tf.eye(X.shape[0])
-    elif kernel =="SE":
-        cov = kernels.SE(X,X,params) + tf.eye(X.shape[0])
-    elif kernel == "CONST" :
-       cov = kernels.CONST(X,X,params) + tf.eye(X.shape[0]) 
-    _L = tf.linalg.cholesky(cov)
-    _temp = tf.linalg.solve(_L, Y)
-    alpha = tf.linalg.solve(tf.transpose(_L), _temp)
-    loss = 0.5*tf.matmul(tf.transpose(Y),alpha) + tf.math.log(tf.linalg.trace(_L)) +0.5*X.shape[0]*tf.math.log([PI*2])
-    
-    return loss
 
 
 def log_cholesky_l_test(X,Y,params,kernel):
@@ -157,18 +127,19 @@ def log_cholesky_l_test(X,Y,params,kernel):
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov  = tf.math.multiply(cov,method(X,X,[params[p] for p in par]))
             num += KERNELS_LENGTH[op[1:]]
-    decomposed, _jitter,loop = False, 1e-4 , 0
-    while not decomposed and loop < 5 :
+    decomposed, _jitter,loop = False, 10e-7, 0
+    """while not decomposed :
         try :
             _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+_jitter*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
             decomposed = True 
         except Exception as e :
             loop +=1
             #print("Cholesky decomposition failed trying with a more important jitter")
-            _jitter = tf.random.uniform([1], minval=1e-1, maxval=1, dtype=_precision, seed=None, name=None) + 1*(loop-1)
+            #_jitter *= 10"""
+    _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
     _temp = tf.cast(tf.linalg.solve(_L, Y),dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp),dtype=_precision)
-    loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.trace(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
+    loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.det(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
     return loss
 
 
