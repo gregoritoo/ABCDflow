@@ -36,22 +36,22 @@ from training import *
 if __name__ =="__main__" :
 
     # Loading dataset 
-    Y = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1, 1)
-    X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
-    X_s = np.linspace(0,len(Y)+60,len(Y)+60).reshape(-1, 1)
-    plt.plot(Y)
-    plt.show()
+    X = np.linspace(-10, 10, 101).reshape(-1,1)
+    Y = np.array(np.cos( (X - 5) / 2 )**2 * X * 2 + np.random.randn(101, 1)).reshape(-1,1)
+    X_s = np.linspace(-15,20,150).reshape(-1, 1)
     t0 = time.time()
-    """model,kernel = single_model(X,Y,X_s,["+PER","*LIN","+LIN","*SE"],verbose=True, \
-                                nb_restart=1,initialisation_restart=5)"""
-    try :
-        model,kernel = launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=4,verbose=False,initialisation_restart=20,GPY=True) 
-    except Exception as e :
-        print(e)
+    t0 = time.time()
+    model,kernel = launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=3,verbose=True,initialisation_restart=10) #straight parameters == True 
     print('time took: {} seconds'.format(time.time()-t0))
+    model.describe(kernel)
+    mu,cov = model.predict(X,Y,X_s,kernel)
+    model.plot(mu,cov,X,Y,X_s,kernel)
+    plt.show()
+
+    """print('time took: {} seconds'.format(time.time()-t0))
     print(model)
     model.plot()
-    plt.show()
+    plt.show()"""
     """mu,cov = model.predict(X,Y,X_s,kernel)
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()"""

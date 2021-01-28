@@ -9,6 +9,7 @@ import GPy
 import sys 
 from utils import *
 import os 
+from language import *
 import kernels as kernels 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float32')
@@ -142,6 +143,32 @@ class CustomModel(object):
         mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
         cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
         return mu,cov
+
+
+    def split_params(self,kernel_list):
+        params = list(self._opti_variables_name)
+        list_params = []
+        pos = 0
+        for element in kernel_list :
+            if element[1] == "P" : 
+                list_params.append(params[pos:pos+3])
+                pos+=3
+            else : 
+                list_params.append(params[pos:pos+2])
+                pos+=2
+        return list_params
+
+    def describe(self,kernel_list) :
+        list_params = self.split_params(kernel_list)
+        params_dic = self._variables
+        loop_counter= 0
+        splitted,pos = devellopement(kernel_list)
+        summary = "The signal has {} componants :\n".format(len(splitted))
+        for element in splitted :
+            summary =  comment(summary,element,pos[loop_counter],params_dic,list_params)  + "\n"
+            loop_counter += 1
+        summary = summary + "\t It also have a noise of {:.1f} .".format(self._variables["noise"].numpy()[0])
+        print(summary)
 
 
         

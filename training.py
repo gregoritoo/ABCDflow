@@ -134,26 +134,21 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                 best =  val
                 best_model = model
     elif "lfbgs" :
-        while loop < nb_restart :
-            try :
-                nb_iter = max(nb_iter,500)
-                if verbose : 
-                    sys.stdout.write("\r"+"Iteration n°{}/{}".format(loop,nb_restart))
-                    sys.stdout.flush()
-                #results = train_step_lfgbs(X_train,Y_train,model._opti_variables,kernels_name)
-                func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
-                init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
-                #init_params = tf.cast(init_params, dtype=_precision)
-                # train the model with L-BFGS solver
-                bnds = list([(1e-6, None) for _ in range(len(model.variables)-1)])
-                bnds.append([1e-8,None])  # specific boundaries for the noise parameter
-                #options={"maxiter":nb_iter}
-                results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=tuple(bnds))
-                #results = tfp.optimizer.lbfgs_minimize(value_and_gradients_function=func, initial_position=init_params,tolerance=1e-8)
-                best_model = model
-            except Exception as e:
-                print(e)
-            loop+=1
+        try :
+            nb_iter = max(nb_iter,100)
+            #results = train_step_lfgbs(X_train,Y_train,model._opti_variables,kernels_name)
+            func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
+            init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
+            #init_params = tf.cast(init_params, dtype=_precision)
+            # train the model with L-BFGS solver
+            bnds = list([(1e-6, None) for _ in range(len(model.variables)-1)])
+            bnds.append([1e-8,None])  # specific boundaries for the noise parameter
+            #options={"maxiter":nb_iter}
+            results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=tuple(bnds),options={"maxiter":nb_iter})
+            #results = tfp.optimizer.lbfgs_minimize(value_and_gradients_function=func, initial_position=init_params,tolerance=1e-8)
+            best_model = model
+        except Exception as e:
+            print(e)
     else :
         raise  NotImplementedError("Mode %s not available please choose between lfbgs or SBD")
     return best_model
