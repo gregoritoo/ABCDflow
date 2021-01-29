@@ -8,6 +8,14 @@ This project use three differents tehniques to maximize the log likelihood :
 - Wrapper of GPy library
 
 
+Prediction
+----------
+![Prediction](final_final.png)
+
+Description
+-----------
+![Description](description.png)
+
 Decomposition
 -------------
 ![Decompo](decomp.png)
