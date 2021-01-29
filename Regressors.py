@@ -11,8 +11,11 @@ from utils import *
 import os 
 from language import *
 import kernels as kernels 
+import itertools
+from language import *
+from search import _preparekernel
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.keras.backend.set_floatx('float32')
+tf.keras.backend.set_floatx('float64')
 PI = m.pi
 _precision = tf.float64
 
@@ -25,8 +28,6 @@ KERNELS_FUNCTIONS = {
     "WN": kernels.WN,
 
 }
-
-
 
 
 class CustomModel(object):
@@ -46,11 +47,11 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=1000.))
+                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=100.))
         self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=1000.))
+                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=100.))
 
     @property
     def initialisation_values(self):
@@ -167,8 +168,77 @@ class CustomModel(object):
         for element in splitted :
             summary =  comment(summary,element,pos[loop_counter],params_dic,list_params)  + "\n"
             loop_counter += 1
-        summary = summary + "\t It also have a noise of {:.1f} .".format(self._variables["noise"].numpy()[0])
+        summary = summary + "\t It also has a noise of {:.1f} .".format(self._variables["noise"].numpy()[0])
         print(summary)
 
+    def decompose(self,kernel_list,X_train,Y_train,X_s):
+        list_params = self.split_params(kernel_list)
+        splitted,pos = devellopement(kernel_list)
+        params_dic = self._variables
+        loop_counter= 0
+        cov = 0
+        for element in splitted :
+            kernels = _preparekernel(element,scipy=True)
+            list_of_dic = [list_params[position] for position in pos[loop_counter]]
+            merged = list(itertools.chain(*list_of_dic))
+            dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
+            decomp_model = CustomModel(kernels,dictionary)
+            mu,cov = decomp_model.predict(X_train,Y_train,X_s,element)
+            plt.title("kernel :"+''.join(element)[1:])
+            decomp_model.plot(mu,cov,X_train,Y_train,X_s,kernel_name=None)
+            plt.show(block=True)
+            plt.close()
+
+    
+class GPyWrapper(object):
+    def __init__(self,model,kernels):
+        self._model = model 
+        self._kernels_list = kernels
+
+    def variables(self):
+        return self._model.param_array
+
+    def variables_names(self):
+        return self._model.parameter_names()
+
+    def viewVar(self,kernels) :
+        print("\n Parameters of  : {}".format(kernels))
+        print(self._model)
+
+    def plot(self,mu=None,cov=None,X_train=None,Y_train=None,X_s=None,kernel_name=None):
+        self._model.plot()
+        plt.show()
+        return 0
+
+    def split_params(self,kernel_list,params_values):
+        list_params = []
+        pos = 0
+        for element in kernel_list :
+            if element[1] == "P" : 
+                list_params.append(params_values[pos:pos+3])
+                pos+=3
+            elif element[1] == "L" : 
+                list_params.append(params_values[pos:pos+1])
+                pos+=1
+            else :
+                list_params.append(params_values[pos:pos+2])
+                pos+=2
+        return list_params
+    
+    def describe(self,kernel_list):
+        splitted,pos = devellopement(kernel_list)
+        loop_counter= 0
+        variables_names = self.variables_names()
+        variables = self.variables()
+        list_params = self.split_params(kernel_list,variables)
+        summary = "The signal has {} componants :\n".format(len(splitted))
+        for element in splitted :
+            summary =  comment_gpy(summary,element,pos[loop_counter],variables_names,list_params)  + "\n"
+            loop_counter += 1
+        summary = summary + "\t It also has a noise of {:.1f} .".format(variables[-1])
+        print(summary)
+
+    def viewVar(self,kernels):
+        print(self._model)
 
         

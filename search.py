@@ -2,9 +2,7 @@
 import numpy as np 
 import tensorflow as tf 
 import os
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.get_logger().setLevel('INFO')
 tf.keras.backend.set_floatx('float64')
 import matplotlib.pyplot as plt 
 import math as m

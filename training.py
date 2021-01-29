@@ -4,7 +4,6 @@ import os
 import logging
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.get_logger().setLevel('INFO')
 tf.keras.backend.set_floatx('float64')
 import matplotlib.pyplot as plt 
 import math as m
@@ -187,6 +186,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     iteration=0
     j = 0
     full_length = len(COMB)
+    loop_size = 24
     while len(COMB) > 1 :
         try : combi = COMB[j]
         except Exception as e :break
@@ -285,7 +285,7 @@ def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
 
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
-                        verbose=False,nb_by_step=None,loop_size=50,nb_workers=None,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs"):
+                        verbose=False,nb_by_step=None,loop_size=10,nb_workers=None,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs"):
     '''
         Launch the analysis
     inputs :
@@ -385,7 +385,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     kerns = tuple((KERNELS_OPS.keys()))
     COMB,count = [],0
     combination =  list(itertools.combinations(kerns, 1))
-    train_length = depth*len(KERNELS) + len(KERNELS)/2
+    train_length = (depth+1)*len(KERNELS) + len(KERNELS)
     for comb in combination :
         if comb[0][0] != "*" : COMB.append(comb)
     for loop in range(1,depth) :
@@ -410,7 +410,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
         if TEMP_MODELS["score"] > BEST_MODELS["score"] :
             BEST_MODELS = TEMP_MODELS
         print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop-1))
-    if not GPY :
+    if not GPY  and verbose :
         model=BEST_MODELS["model"]
         model.viewVar(BEST_MODELS["model_list"])
         print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
@@ -486,7 +486,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                 if  BIC > BEST_MODELS["score"]  : 
                     BEST_MODELS["model_name"] = kernels_name
                     BEST_MODELS["model_list"] = _kernel_list
-                    BEST_MODELS["model"] = model
+                    BEST_MODELS["model"] = GPyWrapper(model,_kernel_list)
                     BEST_MODELS["score"] = BIC 
                     BEST_MODELS["init_values"] =  model.param_array()
                     TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]                

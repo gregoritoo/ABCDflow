@@ -1,5 +1,26 @@
 import numpy as np 
+import pandas as pd 
+import matplotlib.pyplot as plt 
+import os
+import math as m
+import seaborn as sn
+import GPy
+import sys 
+from utils import train_step
+import pandas as pd 
+from itertools import chain
+import itertools
+import pickle 
+import contextlib
+import functools
+import time
+import scipy 
 import tensorflow as tf 
+from changepoint import *
+from training import *
+from search import *
+
+"""import tensorflow as tf 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -8,22 +29,18 @@ import math as m
 import seaborn as sn
 import GPy
 import sys 
-from Regressors import *
 from utils import train_step
 import pandas as pd 
 from itertools import chain
 import itertools
 import pickle 
-import multiprocessing
-from multiprocessing import Pool
-import tensorflow_probability as tfp
 import contextlib
 import functools
 import time
 import scipy 
 from search import *
 from changepoint import *
-from training import *
+from training import *"""
 
 
 
@@ -36,17 +53,29 @@ from training import *
 if __name__ =="__main__" :
 
     # Loading dataset 
-    X = np.linspace(-10, 10, 101).reshape(-1,1)
-    Y = np.array(np.cos( (X - 5) / 2 )**2 * X * 2 + np.random.randn(101, 1)).reshape(-1,1)
-    X_s = np.linspace(-15,20,150).reshape(-1, 1)
-    t0 = time.time()
-    t0 = time.time()
-    model,kernel = launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=3,verbose=True,initialisation_restart=10) #straight parameters == True 
-    print('time took: {} seconds'.format(time.time()-t0))
-    model.describe(kernel)
-    mu,cov = model.predict(X,Y,X_s,kernel)
-    model.plot(mu,cov,X,Y,X_s,kernel)
+    #X = np.linspace(-10, 10, 101).reshape(-1,1)
+    #Y = np.array(np.cos( (X - 5) / 2 )**2 * X * 2 + np.random.randn(101, 1)).reshape(-1,1)
+    Y = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1, 1)
+    X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
+    X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
+    plt.plot(Y)
     plt.show()
+    t0 = time.time()
+    try :
+        #model,kernel = single_model(X,Y,X_s,['+PER', '*LIN',"+LIN","*SE","+SE"],initialisation_restart=1,verbose=False,GPY=True)
+        #model.viewVar(kernel)
+        model,kernel = launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=6,verbose=True,initialisation_restart=10,GPY=False) #straight parameters == True 
+        print('time took: {} seconds'.format(time.time()-t0))
+        #mu,cov = model.predict(X,Y,X_s,kernel)
+        mu,cov = model.predict(X,Y,X_s,kernel)
+        model.plot(mu,cov,X,Y,X_s,kernel)
+        plt.show()
+        model.describe(kernel)
+    except Exception as e :
+        print(e)
+    model.decompose(kernel,X,Y,X_s)
+    plt.show()
+    
 
     """print('time took: {} seconds'.format(time.time()-t0))
     print(model)
@@ -83,7 +112,7 @@ if __name__ =="__main__" :
     print(m)
     m.plot()
     plt.show()"""
-    print('time took: {} seconds'.format(time.time()-t0))
+    #print('time took: {} seconds'.format(time.time()-t0))
     """k =( GPy.kern.RatQuad(input_dim=1) * GPy.kern.StdPeriodic(input_dim=1))*GPy.kern.Exponential(input_dim=1)
     m = GPy.models.GPRegression(X, Y, k, normalizer=False)
     m.optimize()

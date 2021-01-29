@@ -136,7 +136,10 @@ def log_cholesky_l_test(X,Y,params,kernel):
             loop +=1
             #print("Cholesky decomposition failed trying with a more important jitter")
             #_jitter *= 10"""
-    _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
+    try :
+        _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
+    except Exception as e :
+        pass
     _temp = tf.cast(tf.linalg.solve(_L, Y),dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp),dtype=_precision)
     loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.det(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
