@@ -6,3 +6,8 @@ This project use three differents tehniques to maximize the log likelihood :
 - Gradient descent using tensorflow 
 - L-BFGS-B optimizer (scipy)
 - Wrapper of GPy library
+
+
+Decomposition
+-------------
+![Decompo](decomp.png)
