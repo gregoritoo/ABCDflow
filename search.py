@@ -88,6 +88,8 @@ def _mulkernel(kernels_name,_kernel_list,new_k):
     _kernel_list = _kernel_list + ["*"+new_k]
     return kernels_name,_kernel_list
 
+
+
 def _addkernel(kernels_name,_kernel_list,new_k):
     ''' 
         Add  new kernel to the names and in the kernel list with a +
@@ -179,3 +181,22 @@ def search_and_add(_kernel_list):
     for comb in combination :
         COMB.append(_kernel_list+comb)
     return COMB
+
+
+def _replacekernel(_kernel_list):
+    COMB = []
+    counter=0
+    replaced = list(_kernel_list)
+    try :
+        for element in _kernel_list :
+            for replace_object in KERNELS.keys() :
+                if element[1:] != replace_object :
+                    replaced[counter] = element[0] + replace_object
+                COMB.append(replaced)
+                replaced = list(_kernel_list)
+            counter +=1
+        return COMB
+    except Exception as e :
+        print(e)
+        return _kernel_list
+

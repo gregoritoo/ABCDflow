@@ -29,6 +29,13 @@ KERNELS_FUNCTIONS = {
 
 }
 
+GPY_KERNELS = {
+    "LIN" : GPy.kern.Linear,
+    "SE" : GPy.kern.sde_Exponential,
+    "PER" :GPy.kern.StdPeriodic,
+    "RQ" : GPy.kern.RatQuad,
+}
+
 
 class CustomModel(object):
     def __init__(self,params,existing=None):
@@ -39,7 +46,7 @@ class CustomModel(object):
                     self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
                 else :
                     if var in existing.keys() :
                         self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
@@ -47,11 +54,11 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
         self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-7, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
 
     @property
     def initialisation_values(self):
@@ -241,4 +248,39 @@ class GPyWrapper(object):
     def viewVar(self,kernels):
         print(self._model)
 
-        
+    def decompose(self,kernel_list,X_train,Y_train,X_s):
+        splitted,pos = devellopement(kernel_list)
+        variables = self.variables()
+        list_params = self.split_params(kernel_list,variables)
+        loop_counter= 0
+        counter = 0
+        for element in splitted :
+            kernels = _preparekernel(element,scipy=True)
+            list_of_dic = [list_params[position] for position in pos[loop_counter]]
+            params = [list_params[position] for position in pos[loop_counter]]
+            print(element)
+            print(params)
+            loop_counter += 1
+            try :
+                k = self._gpy_kernels_from_names(element,params)
+            except Exception as e :
+                print(e)
+            print(kernel)
+            model = GPy.models.GPRegression(X_train, Y_train, k, normalizer=False)
+            model.plot()
+            loop_counter += 1
+
+    def _gpy_kernels_from_names(self,_kernel_list,params):
+        try :
+            kernel = GPy.kern.Linear(1,params[0][0])
+        except Exception as e:
+            print(e)
+        print(kernel)
+        for j in range(1,len(_kernel_list)) :
+            if _kernel_list[j][0] == "+" :
+                kernel = kernel + GPY_KERNELS[_kernel_list[j][1 :]](1,params[j])
+            elif _kernel_list[j][0] == "*" :
+                kernel = kernel * GPY_KERNELS[_kernel_list[j][1 :]](1,params[j])
+            else :
+                raise ValueError("Illicite operation")
+        return kernel

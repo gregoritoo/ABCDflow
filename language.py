@@ -1,33 +1,6 @@
 import numpy as np 
- 
 import os
 import re 
-"""os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.keras.backend.set_floatx('float64')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-import tensorflow as tf
-from Regressors import *
-from utils import train_step
-import pandas as pd 
-from itertools import chain
-import itertools
-import pickle 
-import multiprocessing
-from multiprocessing import Pool
-import tensorflow_probability as tfp
-import contextlib
-import functools
-import time
-import scipy 
-from search import *
-from changepoint import *
-from training import *"""
-
-
 
 def devellopement(kernel_list):
     splitted = []
@@ -69,7 +42,7 @@ def comment(text,component,pos,params_dic,list_params):
             else :
                 text = text + "with a linearely varying amplitude  of {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]))
         if re.search('\*PER', kern) is not None :
-            text = text + "modulated by a periodic function defined by a period of {:.1f}, a variance of {:.1f} and lengthscale of {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]),float(params_dic[params[1]].numpy()[0]),float(params_dic[params[2]].numpy()[0]))
+            text = text + "modulated by a periodic function defined by a period of {:.1f}, a variance of {:.1f} and lengthscale of {:.1f} , ".format(float(params_dic[params[1]].numpy()[0]),float(params_dic[params[2]].numpy()[0]),float(params_dic[params[0]].numpy()[0]))
         if  re.search('\*SE', kern) is not None  :
             text = text + "whose shape varying smoothly with a lengthscale of {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]))
     return text[:-2]+"."

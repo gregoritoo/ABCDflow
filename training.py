@@ -17,24 +17,22 @@ from itertools import chain
 import itertools
 import pickle 
 import multiprocessing
-from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool 
 import tensorflow_probability as tfp
 import contextlib
 import functools
 import time
 import scipy 
-from search import _preparekernel,_addkernel,_mulkernel, search,_prune,search_and_add
+from search import _preparekernel,_addkernel,_mulkernel, search,_prune,search_and_add,_replacekernel
 
-f = open(os.devnull, 'w')
-sys.stderr = f
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.FATAL)
-def mse(y,ypred):
-    return np.mean(np.square(y-ypred))
+
 
 PI = m.pi
 _precision = tf.float64
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
+config.inter_op_parallelism_threads = 8
+config.intra_op_parallelism_threads = 8
 session = tf.compat.v1.Session(config=config)
 
 lr_list = np.linspace(0.001,1,101)
@@ -266,22 +264,7 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
 
 
 
-def parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step):
-    ''' 
-        Create a pool of nb_workers workers
-    '''
-    multiprocessing.set_start_method('spawn', force=True)
-    COMB = search("",[],True)
-    poll_list=[]
-    for i in range(nb_workers) :
-        COMB_ = COMB[int(i*len(COMB)/nb_workers):int(i+1*len(COMB)/nb_workers)]
-        name = "search/model_list_"+str(i)
-        with open(name, 'wb') as f :
-            pickle.dump(COMB_,f)
-    i = 0
-    params = [(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i) for i in range(nb_workers)]
-    with Pool(nb_workers) as pool: 
-        pool.starmap(analyse,params)
+
 
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
@@ -323,6 +306,16 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             mean, var = tf.nn.moments(X_s,axes=[0])
             X_s = (X_s - mean) / var
     t0 = time.time()
+    if experimental_multiprocessing :
+        i=-1
+        print("This is experimental, the accuracy may varie a lot  !")
+        #if nb_workers is None : 
+            # raise ValueError("Number of workers should be precise")
+        try :
+            model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=experimental_multiprocessing)
+        except Exception as e :
+            print(e)
+        return model,kernels
     if straigth :
         i=-1
         model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth,initialisation_restart,GPY=GPY,mode=mode)
@@ -333,7 +326,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
         return model,kernels
     if not experimental_multiprocessing :
         i=-1 
-        model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode)
+        model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=experimental_multiprocessing)
         name,name_kernel = './best_models/best_model', kernels
         if save_model :
             with open(name, 'wb') as f :
@@ -346,17 +339,21 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             model.plot(mu,cov,X_train,Y_train,X_s,kernels)
             plt.show()
         return model,name_kernel
-    elif experimental_multiprocessing :
-        print("This is experimental, it is slower than monoprocessed !")
-        if nb_workers is None : 
-            raise ValueError("Number of workers should be precise")
-        parralelize(X_train,Y_train,X_s,nb_workers,nb_restart,nb_iter,nb_by_step)
-        return model,kernels
+   
+
+def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode):
+    ''' 
+        Use class multiprocessing.dummies to multithread one step train
+    '''
+    params = [[X_train,Y_train,X_s,comb,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,mode,False,False,initialisation_restart,GPY] for comb in combi]
+    pool = ThreadPool()
+    outputs = pool.starmap(search_step_parrallele,params)
+    pool.close()
+    pool.join()
+    return outputs
 
 
-
-
-def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs"):
+def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs",parralelize_code=False):
     """
         FInd best combinaison of kernel that descrive the training data , keep one best model at each step 
     inputs :
@@ -387,8 +384,9 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     combination =  list(itertools.combinations(kerns, 1))
     train_length = (depth+1)*len(KERNELS) + len(KERNELS)
     for comb in combination :
-        if comb[0][0] != "*" : COMB.append(comb)
-    for loop in range(1,depth) :
+        if comb[0][0] != "*" : 
+            COMB.append(comb)
+    for loop in range(depth) :
         TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
         loop += 1
         if loop > 1 :
@@ -396,25 +394,62 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             print("Next combinaison to try : {}".format(COMB))
         iteration=0
         j = 0
-        while j <  len(COMB) :
-            count += 1
-            try : combi = COMB[j]
-            except Exception as e :break
-            iteration+=1
-            j+=1
-            TEMP_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
-            sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combi))
-            sys.stdout.flush()
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-        if TEMP_MODELS["score"] > BEST_MODELS["score"] :
-            BEST_MODELS = TEMP_MODELS
-        print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop-1))
+        if parralelize_code :
+            outputs = parralelize(X_train,Y_train,X_s,COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
+            for element in outputs :
+                if element is None :
+                    break 
+                else :
+                    if element["score"] > BEST_MODELS["score"] :
+                        BEST_MODELS = element
+                print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop))
+            if loop > 1 :
+                new_COMB = _replacekernel(BEST_MODELS["model_list"])   #swap step 
+                print("Trying to switch kernels : trying {} ".format(new_COMB))
+                outputs = parralelize(X_train,Y_train,X_s,new_COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
+                for element in outputs :
+                    if element is None :
+                        break 
+                    else :
+                        if element["score"] > BEST_MODELS["score"] :
+                            BEST_MODELS = element
+        else :
+            while j <  len(COMB) :
+                try : combi = COMB[j]
+                except Exception as e :break
+                iteration+=1
+                j+=1
+                count += 1
+                TEMP_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
+                sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combi))
+                sys.stdout.flush()
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+            if TEMP_MODELS["score"] > BEST_MODELS["score"] :
+                BEST_MODELS = TEMP_MODELS
+            print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop))
+            if loop > 2 and len(BEST_MODELS["model_list"]) > 2:
+                new_COMB = _replacekernel(BEST_MODELS["model_list"])   #swap step 
+                print("Trying to switch kernels : trying {} ".format(new_COMB))
+                j=0
+                while j <  len(new_COMB) :
+                    try : combi = new_COMB[j]
+                    except Exception as e :break
+                    j+=1
+                    TEMP_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
+                    sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combi))
+                    sys.stdout.flush()
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                if TEMP_MODELS["score"] > BEST_MODELS["score"] :
+                    BEST_MODELS = TEMP_MODELS
+        print("The best model is {} after swap ".format(BEST_MODELS["model_list"]))
     if not GPY  and verbose :
         model=BEST_MODELS["model"]
         model.viewVar(BEST_MODELS["model_list"])
         print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
     return BEST_MODELS["model"],BEST_MODELS["model_list"]
+
 
 
 def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
@@ -459,14 +494,6 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                             model=CustomModel(kernels,init_values)
                             model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose,mode=mode)
                             BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
-                            """mu,cov = model.predict(X_train,Y_train,X_full,_kernel_list)
-                            try :
-                                mean,_,_= get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)     // uncomment to do cross validation to avoid overfitting when using cross validation
-                            except Exception as e:
-                                print(e)
-                                break
-                            BIC = mse(X_full.numpy()[-30:],mean[-30:])
-                            print(BIC)"""
                             if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
                                 BEST_MODELS["model_name"] = kernels_name
                                 BEST_MODELS["model_list"] = _kernel_list
@@ -497,6 +524,62 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
     else :
         return BEST_MODELS
 
+
+def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart,nb_iter, \
+                                        nb_by_step,prune,verbose,OPTIMIZER,mode="lfbgs",unique=False,single=False,initialisation_restart=10,GPY=False):
+    '''
+        Launch the training of a gaussian process
+    inputs :
+        X_train : Tensor, Training X
+        Y_train : Tensor, Training Y
+        BEST_MODELS : dict, dictionnary containing the best model and it score
+        TEMP_BEST_MODELS :  dict, dictionnary containing temporaries bests models and theirs score
+        nb_iter : int, number of iterations during the training
+        nb_by_step : int, number of best model to keep when prune is true 
+        nb_restart : int, retrain on same data (epoch)
+        kernels_name : string, updated kernel name   ex +LIN*PER*PER
+        OPTIMIZER : tf optimizer object 
+        verbose : Bool, print training process
+        mode : string , training mode 
+        unique : Bool, if only one kernel in the list ex +PER
+        single : Bool, 
+        initialisation_restart : int, number of restart training with different initiatlisation parameters
+    outputs:
+        BEST_MODELS : dict, dictionnary containing the best model and it score
+    '''
+    """X_full = X_train
+    Y_full = Y_train"""
+    j=0
+    lr = 0.1
+    BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
+    init_values = TEMP_BEST_MODELS["init_values"] 
+    try :
+        if not unique : _kernel_list = list(combi)
+        else : _kernel_list = list([combi])
+        if single : _kernel_list = combi
+        kernels_name = ''.join(combi)
+        true_restart = 0
+        if mode == "lfbgs" : kernels = _preparekernel(_kernel_list)
+        else : kernels = _preparekernel(_kernel_list)
+        if kernels_name[0] != "*" :
+            while true_restart < initialisation_restart :
+                try :
+                    model=CustomModel(kernels,init_values)
+                    model = train(model,nb_iter,nb_restart,X_train,Y_train,_kernel_list,OPTIMIZER,verbose,mode=mode)
+                    BIC = model.compute_BIC(X_train,Y_train,_kernel_list)
+                    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
+                        BEST_MODELS["model_name"] = kernels_name
+                        BEST_MODELS["model_list"] = _kernel_list
+                        BEST_MODELS["model"] = model
+                        BEST_MODELS["score"] = BIC 
+                        BEST_MODELS["init_values"] =  model.initialisation_values
+                    true_restart += 1     
+                except Exception :
+                    pass              
+    except Exception as e:
+        print("error with kernel :",kernels_name)
+    else :
+        return BEST_MODELS
 
 def gpy_kernels_from_names(_kernel_list):
     kernel = GPY_KERNELS[_kernel_list[0][1 :]]
