@@ -34,7 +34,7 @@ if __name__ =="__main__" :
     plt.show()
     
     #Plot contribution of every group of kernel using kernels devellopement in the article 
-    model.decompose(kernel_list,X_train,Y_train,X_s)
+    model.decompose(kernel,X,Y,X_s)
     plt.show()
 ```
 
