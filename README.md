@@ -21,7 +21,7 @@ if __name__ =="__main__" :
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
     
-    #launch search of best kernels using scipy optimizer and multiprocessing with 5 random restart for each optimization step
+    #launch search of best kernels using scipy optimizer and multithreading with 5 random restart for each optimization step
     model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=4,verbose=True,initialisation_restart=5,reduce_data=False,experimental_multiprocessing=True) #straight 
     
     #Textual description
