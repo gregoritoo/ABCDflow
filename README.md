@@ -13,6 +13,7 @@ How to use it ?
 import numpy as np
 import pandas as pd 
 from training import *
+import matplotlib.pyplot as plt 
 
 if __name__ =="__main__" :
     #load data
