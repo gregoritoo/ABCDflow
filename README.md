@@ -1,6 +1,6 @@
 # ABCDflow 
 
-Unofficial implementation of https://arxiv.org/pdf/1302.4922.pdf
+Unofficial implementation of https://arxiv.org/pdf/1302.4922.pdf and https://github.com/duvenaud/phd-thesis
 
 This project uses three differents tehniques to maximize the log likelihood :
 - Gradient descent using tensorflow 
@@ -33,7 +33,7 @@ if __name__ =="__main__" :
     model.plot(mu,cov,X,Y,X_s,kernel)
     plt.show()
     
-    #Plot contribution of every group of kernel using kernels devellopement in the article 
+    #Plot contribution of every group of kernel using kernels devellopement as in the article 
     model.decompose(kernel,X,Y,X_s)
     plt.show()
 ```
