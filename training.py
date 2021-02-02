@@ -18,13 +18,12 @@ import itertools
 import pickle 
 import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool 
-import tensorflow_probability as tfp
 import contextlib
 import functools
 import time
 import scipy 
-from search import _preparekernel,_addkernel,_mulkernel, search,_prune,search_and_add,replacekernel
-
+from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel
+from utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
 
 
 PI = m.pi
@@ -37,47 +36,6 @@ session = tf.compat.v1.Session(config=config)
 
 lr_list = np.linspace(0.001,1,101)
 borne = -1*10e40
-
-KERNELS_LENGTH = {
-    "LIN" : 2,
-    "SE" : 2,
-    "PER" :3,
-    #"CONST" : 1,
-    #"WN" : 1,
-    #"RQ" : 3,
-}
-
-KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    #"CONST" : {"parameters":["const_sigma"]},
-    "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
-    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
-    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
-}
-
-
-KERNELS_OPS = {
-    "*LIN" : "mul",
-    "*SE" : "mul",
-    "*PER" :"mul",
-    "+LIN" : "add",
-    "+SE" : "add",
-    "+PER" : "add",
-    #"+CONST" :"add",
-    #"*CONST" : "mul",
-    #"+WN" :"add",
-    #"*WN" : "mul",
-    #"+RQ" : "add",
-    #"*RQ" : "mul",
-}
-
-GPY_KERNELS = {
-    "LIN" : GPy.kern.Linear(input_dim=1),
-    "SE" : GPy.kern.sde_Exponential(input_dim=1),
-    "PER" :GPy.kern.StdPeriodic(input_dim=1),
-    "RQ" : GPy.kern.RatQuad(input_dim=1),
-}
 
 
 
@@ -195,7 +153,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
                 j=0
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS[: nb_by_step]
                 _before_len = len(COMB)
-                COMB = _prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
+                COMB = prune(TEMP_BEST_MODELS["Name"].tolist(),COMB[iteration :])
                 _to_add = _before_len - len(COMB)-1
                 iteration += _to_add
             BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
@@ -469,8 +427,8 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         if single : kernel_list = combi
         kernels_name = ''.join(combi)
         true_restart = 0
-        if mode == "lfbgs" : kernels = _preparekernel(kernel_list,scipy=True)
-        else : kernels = _preparekernel(kernel_list)
+        if mode == "lfbgs" : kernels = preparekernel(kernel_list,scipy=True)
+        else : kernels = preparekernel(kernel_list)
         if kernels_name[0] != "*" :
             if not GPY : 
                 while true_restart < initialisation_restart :
@@ -531,8 +489,8 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
         if single : kernel_list = combi
         kernels_name = ''.join(combi)
         true_restart = 0
-        if mode == "lfbgs" : kernels = _preparekernel(kernel_list)
-        else : kernels = _preparekernel(kernel_list)
+        if mode == "lfbgs" : kernels = preparekernel(kernel_list)
+        else : kernels = preparekernel(kernel_list)
         if kernels_name[0] != "*" :
             while true_restart < initialisation_restart :
                 try :

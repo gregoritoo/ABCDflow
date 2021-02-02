@@ -35,6 +35,7 @@ PI = m.pi
 OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
 _jitter = 1e-7
 _precision = tf.float64
+
 KERNELS_LENGTH = {
     "LIN" : 2,
     "SE" : 2,
@@ -54,6 +55,46 @@ KERNELS_FUNCTIONS = {
     "CONST" : kernels.CONST,
     "WN" :kernels.WN,
 
+}
+KERNELS_LENGTH = {
+    "LIN" : 2,
+    "SE" : 2,
+    "PER" :3,
+    #"CONST" : 1,
+    #"WN" : 1,
+    #"RQ" : 3,
+}
+
+KERNELS = {
+    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
+    #"CONST" : {"parameters":["const_sigma"]},
+    "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
+    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
+    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
+    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
+}
+
+
+KERNELS_OPS = {
+    "*LIN" : "mul",
+    "*SE" : "mul",
+    "*PER" :"mul",
+    "+LIN" : "add",
+    "+SE" : "add",
+    "+PER" : "add",
+    #"+CONST" :"add",
+    #"*CONST" : "mul",
+    #"+WN" :"add",
+    #"*WN" : "mul",
+    #"+RQ" : "add",
+    #"*RQ" : "mul",
+}
+
+GPY_KERNELS = {
+    "LIN" : GPy.kern.Linear,
+    "SE" : GPy.kern.sde_Exponential,
+    "PER" :GPy.kern.StdPeriodic,
+    "RQ" : GPy.kern.RatQuad,
 }
 
 def make_df(X,stdp,stdi):
@@ -118,7 +159,7 @@ def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy
             BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
             BEST_MODELS["init_values"] =  model.param_array()
     return BEST_MODELS
-    
+
 def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
     for element in outputs_threadpool :
         if element is None :

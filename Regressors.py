@@ -1,7 +1,5 @@
 import numpy as np 
 import tensorflow as tf 
-from pprint import pprint
-import tensorflow_probability as tfp
 import matplotlib.pyplot as plt 
 import math as m
 import seaborn as sn
@@ -13,28 +11,13 @@ from language import *
 import kernels as kernels 
 import itertools
 from language import *
-from search import _preparekernel
+from search import preparekernel
+from utils import KERNELS_FUNCTIONS,GPY_KERNELS
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 PI = m.pi
 _precision = tf.float64
 
-KERNELS_FUNCTIONS = {
-    "LIN" : kernels.LIN,
-    "PER" : kernels.PER,
-    "SE" : kernels.SE,
-    "RQ" : kernels.RQ,
-    "CONST" : kernels.CONST,
-    "WN": kernels.WN,
-
-}
-
-GPY_KERNELS = {
-    "LIN" : GPy.kern.Linear,
-    "SE" : GPy.kern.sde_Exponential,
-    "PER" :GPy.kern.StdPeriodic,
-    "RQ" : GPy.kern.RatQuad,
-}
 
 
 class CustomModel(object):
@@ -185,7 +168,7 @@ class CustomModel(object):
         loop_counter= 0
         cov = 0
         for element in splitted :
-            kernels = _preparekernel(element,scipy=True)
+            kernels = preparekernel(element,scipy=True)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
@@ -255,7 +238,7 @@ class GPyWrapper(object):
         loop_counter= 0
         counter = 0
         for element in splitted :
-            kernels = _preparekernel(element,scipy=True)
+            kernels = preparekernel(element,scipy=True)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             params = [list_params[position] for position in pos[loop_counter]]
             print(element)

@@ -17,12 +17,11 @@ import itertools
 import pickle 
 import multiprocessing
 from multiprocessing import Pool
-import tensorflow_probability as tfp
 import contextlib
 import functools
 import time
 import scipy 
-
+from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS
 
 
 PI = m.pi
@@ -35,45 +34,7 @@ borne = -1*10e40
 
 
 
-KERNELS_LENGTH = {
-    "LIN" : 2,
-    "SE" : 2,
-    "PER" :3,
-    #"CONST" : 1,
-    "WN" : 1,
-    #"RQ" : 3,
-}
-
-KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    #"CONST" : {"parameters":["const_sigma"]},
-    "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
-    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
-    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
-}
-
-
-
-
-KERNELS_OPS = {
-    "*LIN" : "mul",
-    "*SE" : "mul",
-    "*PER" :"mul",
-    "+LIN" : "add",
-    "+SE" : "add",
-    "+PER" : "add",
-    #"+CONST" :"add",
-    #"*CONST" : "mul",
-    #"+WN" :"add",
-    #"*WN" : "mul",
-    #"+RQ" : "add",
-    #"*RQ" : "mul",
-}
-
-
-
-def _mulkernel(kernels_name,_kernel_list,new_k):
+def mulkernel(kernels_name,_kernel_list,new_k):
     ''' 
         Add  new kernel to the names and in the kernel list with a * 
     inputs :
@@ -90,7 +51,7 @@ def _mulkernel(kernels_name,_kernel_list,new_k):
 
 
 
-def _addkernel(kernels_name,_kernel_list,new_k):
+def addkernel(kernels_name,_kernel_list,new_k):
     ''' 
         Add  new kernel to the names and in the kernel list with a +
     inputs :
@@ -105,7 +66,7 @@ def _addkernel(kernels_name,_kernel_list,new_k):
     _kernel_list = _kernel_list + ["+"+new_k]
     return kernels_name,_kernel_list
 
-def _preparekernel(_kernel_list,scipy=True):
+def preparekernel(_kernel_list,scipy=True):
     '''
         Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
     inputs :
@@ -148,7 +109,7 @@ def search(kernels_name,_kernel_list,init,depth=5):
     return COMB
 
 
-def _prune(tempbest,rest):
+def prune(tempbest,rest):
     '''
         Cut the graph in order to keep only the combinaison that correspond to the best for the moment 
     inputs :

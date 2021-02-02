@@ -3,14 +3,12 @@ import tensorflow as tf
 from pprint import pprint
 import logging
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
-import tensorflow_probability as tfp
 import matplotlib.pyplot as plt 
 import math as m
 import seaborn as sn
 import GPy
 import sys 
 import os 
-import tensorflow_probability as tfp 
 
 
 
@@ -79,7 +77,6 @@ def RQ(x,y,params):
     return sigma*w
 
 
-# Still to do, implement sigmoid kernel
 @tf.function
 def CP(x,y,params,inverse=False):
     l,s = params[0],params[1]
