@@ -97,6 +97,37 @@ def get_values(mu_s,cov_s,nb_samples=100):
     mean = [np.mean(samples[:,i])for i in range(samples.shape[1])]
     return mean,stdp,stdi
 
+def print_trainning_steps(count,train_length,combinaison_element):
+    sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combinaison_element))
+    sys.stdout.flush()
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=False):
+    '''
+        Update the BEST_MODELS dictionnary if the specific input model has a higher BIC score
+    '''
+    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
+        BEST_MODELS["model_name"] = kernels_name
+        BEST_MODELS["model_list"] = kernel_list
+        BEST_MODELS["score"] = BIC 
+        if not GPy :
+            BEST_MODELS["model"] = model
+            BEST_MODELS["init_values"] =  model.initialisation_values
+        else :
+            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
+            BEST_MODELS["init_values"] =  model.param_array()
+    return BEST_MODELS
+    
+def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
+    for element in outputs_threadpool :
+        if element is None :
+            return BEST_MODELS 
+        else :
+            if element["score"] > BEST_MODELS["score"] :
+                BEST_MODELS = element
+    return BEST_MODELS
+
 @tf.function
 def compute_posterior(y,cov,cov_s,cov_ss):
     mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)

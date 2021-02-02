@@ -40,7 +40,7 @@ KERNELS_LENGTH = {
     "SE" : 2,
     "PER" :3,
     #"CONST" : 1,
-    #"WN" : 1,
+    "WN" : 1,
     #"RQ" : 3,
 }
 
@@ -183,7 +183,7 @@ def search_and_add(_kernel_list):
     return COMB
 
 
-def _replacekernel(_kernel_list):
+def replacekernel(_kernel_list):
     COMB = []
     counter=0
     replaced = list(_kernel_list)
@@ -199,4 +199,15 @@ def _replacekernel(_kernel_list):
     except Exception as e :
         print(e)
         return _kernel_list
+
+def gpy_kernels_from_names(_kernel_list):
+    kernel = GPY_KERNELS[_kernel_list[0][1 :]]
+    for j in range(1,len(_kernel_list)) :
+        if _kernel_list[j][0] == "+" :
+            kernel = kernel + GPY_KERNELS[_kernel_list[j][1 :]]
+        elif _kernel_list[j][0] == "*" :
+            kernel = kernel * GPY_KERNELS[_kernel_list[j][1 :]]
+        else :
+            raise ValueError("Illicite operation")
+    return kernel
 
