@@ -234,6 +234,10 @@ def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.
 
 
 
+def whitenning_datas(X):
+    mean, var = tf.nn.moments(X,axes=[0])
+    X = (X - mean) / var
+    return X
 
 
 def loss_function(x_u_train, u_train, network):

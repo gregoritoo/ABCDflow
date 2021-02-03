@@ -105,7 +105,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
         except Exception as e:
             print(e)
     else :
-        raise  NotImplementedError("Mode %s not available please choose between lfbgs or SBD")
+        raise  NotImplementedError("Mode not available please choose between lfbgs or SBD")
     return best_model
 
 
@@ -196,12 +196,9 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
     """
     X_train,Y_train,X_s = tf.Variable(X_train,dtype=_precision),tf.Variable(Y_train,dtype=_precision),tf.Variable(X_s,dtype=_precision)
     if reduce_data :
-            mean, var = tf.nn.moments(X_train,axes=[0])
-            X_train = (X_train - mean) / var
-            mean, var = tf.nn.moments(Y_train,axes=[0])
-            Y_train = (Y_train - mean) / var
-            mean, var = tf.nn.moments(X_s,axes=[0])
-            X_s = (X_s - mean) / var
+            X_train = whitenning_datas(X_train)
+            Y_train = whitenning_datas(Y_train)
+            X_s = whitenning_datas(X_s)
     assert kernel[0][0] == "+" , "First kernel of the list must start with + "
     iteration = 1
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
@@ -209,16 +206,15 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
     full_length= 1
     BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS,TEMP_BEST_MODELS=TEMP_BEST_MODELS,\
         nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,OPTIMIZER=OPTIMIZER,nb_by_step=None,prune=False,unique=True,single=True,mode=mode,initialisation_restart=initialisation_restart,GPY=GPY)
-    sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(kernel))
-    sys.stdout.flush()
+    print_trainning_steps(iteration,full_length,kernel)
     if not GPY :
         model=BEST_MODELS["model"]
         model.viewVar(kernel)
         print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,kernel)))
         mu,cov = model.predict(X_train,Y_train,X_s,kernel)
-    if do_plot : model.plot(mu,cov,X_train,Y_train,X_s,kernel)
+    if do_plot :
+        model.plot(mu,cov,X_train,Y_train,X_s,kernel)
     return BEST_MODELS["model"],kernel
-
 
 
 
@@ -255,12 +251,9 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
     if  straigth : print("You chooosed straightforward training")
     X_train,Y_train,X_s = tf.Variable(X_train,dtype=_precision),tf.Variable(Y_train,dtype=_precision),tf.Variable(X_s,dtype=_precision)
     if reduce_data :
-            mean, var = tf.nn.moments(X_train,axes=[0])
-            X_train = (X_train - mean) / var
-            mean, var = tf.nn.moments(Y_train,axes=[0])
-            Y_train = (Y_train - mean) / var
-            mean, var = tf.nn.moments(X_s,axes=[0])
-            X_s = (X_s - mean) / var
+            X_train = whitenning_datas(X_train)
+            Y_train = whitenning_datas(Y_train)
+            X_s = whitenning_datas(X_s)
     t0 = time.time()
     if experimental_multiprocessing :
         i=-1

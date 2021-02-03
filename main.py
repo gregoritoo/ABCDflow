@@ -26,7 +26,7 @@ from search import *
 
 
 if __name__ =="__main__" :
-    Y = np.array(pd.read_csv("./data/periodic.csv")["x"])[:50].reshape(-1, 1)
+    Y = np.array(pd.read_csv("./data/periodic.csv")["x"])[:].reshape(-1, 1)
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
     plt.plot(Y)
     plt.show()
