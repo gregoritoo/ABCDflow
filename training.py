@@ -159,13 +159,11 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
             BEST_MODELS,TEMP_BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS, \
                                                                 nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
             TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(by=['score'],ascending=True)[:nb_by_step]
-            sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
-            sys.stdout.flush()
+            print_trainning_steps(iteration,full_length,combi)
         else :  
             COMB,j = COMB[1 :],0
             BEST_MODELS = search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
-            sys.stdout.write("\r"+"="*int(iteration/full_length*50)+">"+"."*int((full_length-iteration)/full_length*50)+"|"+" * model is {} ".format(combi))
-            sys.stdout.flush()
+            print_trainning_steps(iteration,full_length,combi)
         sys.stdout.write("\n")
         sys.stdout.flush()
     if not GPY :
@@ -254,49 +252,72 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             X_train = whitenning_datas(X_train)
             Y_train = whitenning_datas(Y_train)
             X_s = whitenning_datas(X_s)
-    t0 = time.time()
+    i=-1 
     if experimental_multiprocessing :
-        i=-1
-        print("This is experimental, the accuracy may varie a lot  !")
-        try :
-            model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                        verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=experimental_multiprocessing)
-        except Exception as e :
-            print(e)
+        model,kernels = multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model)
         return model,kernels
     if straigth :
-        i=-1
-        model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                                    verbose,OPTIMIZER,depth,initialisation_restart,GPY=GPY,mode=mode)
+        model,kernels = monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot)
+        return model,kernels
+    if not experimental_multiprocessing :
+        model,kernels = griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot)
+        return model,name_kernel
+   
+def save_and_plot(func):
+    def wrapper_func(*args,**kwargs):
+        model,kernels = func(*args,**kwargs)
+        name,name_kernel = './best_models/best_model', kernels
+        do_plot,save_model=args[-2],args[-1]
+        X_train,Y_train,X_s = args[0],args[1],args[2]
         if do_plot :
             mu,cov = model.predict(X_train,Y_train,X_s,kernels)
             model.plot(mu,cov,X_train,Y_train,X_s,kernels)
             plt.show()
-        return model,kernels
-    if not experimental_multiprocessing :
-        i=-1 
-        model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                        verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=experimental_multiprocessing)
-        name,name_kernel = './best_models/best_model', kernels
         if save_model :
             with open(name, 'wb') as f :
                 pickle.dump(model,f)
             with open(name_kernel, 'wb') as f :
                 pickle.dump(kernels,f)
-        print("Training ended.Took {} seconds".format(time.time()-t0))
-        if do_plot :
-            mu,cov = model.predict(X_train,Y_train,X_s,kernels)
-            model.plot(mu,cov,X_train,Y_train,X_s,kernels)
-            plt.show()
         return model,name_kernel
-   
+    return wrapper_func
+
+
+@save_and_plot
+def multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,parralelize_code,do_plot,save_model):
+    print("This is experimental, the accuracy may varie a lot  !")
+    try :
+        model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code)
+    except Exception as e :
+        print(e)
+    return model,kernels
+
+@save_and_plot
+def monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model):
+    model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                                verbose,OPTIMIZER,depth,initialisation_restart,GPY=GPY,mode=mode)
+    return model,kernels
+
+@save_and_plot
+def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model):
+    
+    model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                    verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code)
+    return model,kernels
+
 
 def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode):
     ''' 
         Use class multiprocessing.dummies to multithread one step train
     '''
     params = [[X_train,Y_train,X_s,comb,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,mode,False,False,initialisation_restart,GPY] for comb in combi]
-    pool = ThreadPool(8)
+    pool = ThreadPool()
     outputs = pool.starmap(search_step_parrallele,params)
     pool.close()
     pool.join()
@@ -471,8 +492,6 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
     outputs:
         BEST_MODELS : dict, dictionnary containing the best model and it score
     '''
-    """X_full = X_train
-    Y_full = Y_train"""
     true_restart=0
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     init_values = TEMP_BEST_MODELS["init_values"] 

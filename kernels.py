@@ -70,10 +70,16 @@ def SE(x,y1,params):
 def RQ(x,y,params):
     l,sigma,alpha = params[0],params[1],params[2]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
+    x1 = tf.transpose(x)
     multiply_y = tf.constant([1,x.shape[0]])
+    y2 = tf.transpose(tf.tile(y, multiply_y))
     multiply_x = tf.constant([y.shape[0],1])
-    a = tf.cast(1/const*tf.math.add(tf.math.square(tf.math.subtract(tf.transpose(tf.tile(y, multiply_y)), tf.transpose(tf.tile(tf.transpose(x), multiply_x)))),tf.cast(2*alpha*l,dtype=_precision) * tf.ones_like( tf.transpose(tf.tile(tf.transpose(x), multiply_x)),dtype=_precision)),dtype=_precision)
-    w = tf.math.pow(a, -1*alpha*tf.ones_like(x2,dtype=_precision), name="Powered_matrix")
+    x2 = tf.transpose(tf.tile(x1, multiply_x))
+    const = tf.cast(2*alpha*l,dtype=_precision)
+    power_matrix = -1*alpha*tf.ones_like(x2,dtype=_precision)
+    const_matrix = const * tf.ones_like(x2,dtype=_precision)
+    a = tf.cast(1/const*tf.math.add(tf.math.square(tf.math.subtract(y2,x2)),const_matrix),dtype=_precision)
+    w = tf.math.pow(a, power_matrix, name="Powered_matrix")
     return sigma*w
 
 
@@ -89,10 +95,10 @@ def CP(x,y,params,inverse=False):
     const = tf.cast(l/s,dtype=_precision)
     temp = const*tf.ones_like(x2)
     if not inverse : 
-        sigmax = 0.5*(1+tf.math.tanh(tf.math.substract(const-x2))) 
-        sigmay = 0.5*(1+tf.math.tanh(tf.math.subtract(const-y2))) 
-        return tf.math.matmul(sigmax,sigmay)
+        sigmax = 0.5*(1+tf.math.tanh(tf.math.subtract(temp,x2))) 
+        sigmay = 0.5*(1+tf.math.tanh(tf.math.subtract(temp,y2))) 
+        return tf.math.multiply(sigmax,sigmay)
     else :
-        sigmax = tf.math.substract(temp,0.5*(1+tf.math.tanh(tf.math.substract(const-x2))))
-        sigmay = tf.math.substract(temp,0.5*(1+tf.math.tanh(tf.math.subtract(const-y2))))
-        return tf.math.matmul(sigmax,sigmay)
+        sigmax = tf.math.subtract(temp,0.5*(1+tf.math.tanh(tf.math.subtract(temp,x2))))
+        sigmay = tf.math.subtract(temp,0.5*(1+tf.math.tanh(tf.math.subtract(temp,y2))))
+        return tf.math.multiply(sigmax,sigmay)

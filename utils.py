@@ -178,7 +178,6 @@ def compute_posterior(y,cov,cov_s,cov_ss):
 
 def log_cholesky_l_test(X,Y,params,kernel):
     num = 0
-
     params_name = list(params.keys())
     cov = 1
     for op in kernel :
