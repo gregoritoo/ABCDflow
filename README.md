@@ -44,12 +44,12 @@ Results ?
 =======
 Prediction
 ----------
-![Prediction](final_final.png)
+![Prediction](imgs/final_final.png)
 
 Description
 -----------
-![Description](description.png)
+![Description](imgs/description.png)
 
 Decomposition
 -------------
-![Decompo](decomp.png)
+![Decompo](imgs/decomp.png)
