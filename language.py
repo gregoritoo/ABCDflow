@@ -36,6 +36,8 @@ def comment(text,component,pos,params_dic,list_params):
             text =text + "\t A smooth  function with a lengthscale of {:.1f} and a variance of {:.1f} , ".format(float(params_dic[params[0]]),float(params_dic[params[1]].numpy()[0])) 
         if re.search('\+PER', kern) is not None :
             text = text + "\t A periodic component with a period of {:.1f} , a variance of {:.1f} and lengthscale of {:.1f} , ".format(float(params_dic[params[1]].numpy()[0]),float(params_dic[params[2]].numpy()[0]),float(params_dic[params[0]].numpy()[0]))
+        if re.search('\+CONST', kern) is not None :
+            text = text + "\t A constant component with a offset of {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]))
         if  re.search('\*LIN', kern) is not None :
             if re.search('\*LIN\*LIN', kern) is not None :
                 text = text + "with polynomial varying amplitude  of  {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]))

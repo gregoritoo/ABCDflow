@@ -26,14 +26,18 @@ from search import *
 
 
 if __name__ =="__main__" :
-    Y = np.array(pd.read_csv("./data/105.csv")["x"])[:500].reshape(-1, 1)
+    Y = np.array(pd.read_csv("./data/periodic.csv")["x"])[:300].reshape(-1, 1)
+    X_s = np.linspace(0,len(Y)+100,len(Y)+100).reshape(-1, 1)
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
+    """X = np.linspace(-10, 10, 101)[:, None].reshape(-1, 1)
+    Y = np.array(np.cos( (X - 5) / 2 )**2 * X * 2 + np.random.randn(101, 1)).reshape(-1, 1)"""
     plt.plot(Y)
     plt.show()
-    X_s = np.linspace(0,len(Y)+20,len(Y)+20).reshape(-1, 1)
+    #X_s = np.linspace(-20,20,len(X)+40).reshape(-1, 1)
     t0 = time.time()
-    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=2,verbose=True,initialisation_restart=10,reduce_data=False,experimental_multiprocessing=True) #straight parameters == True
+    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=4,verbose=True,initialisation_restart=10,reduce_data=False,experimental_multiprocessing=False) #straight parameters == True
     print('time took: {} seconds'.format(time.time()-t0))
+    print(kernel)
     model.describe(kernel)
     mu,cov = model.predict(X,Y,X_s,kernel)
     model.decompose(kernel,X,Y,X_s)

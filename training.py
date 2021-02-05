@@ -30,8 +30,8 @@ PI = m.pi
 _precision = tf.float64
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
-config.inter_op_parallelism_threads = 8
-config.intra_op_parallelism_threads = 8
+config.inter_op_parallelism_threads = 44
+config.intra_op_parallelism_threads = 44
 session = tf.compat.v1.Session(config=config)
 
 lr_list = np.linspace(0.001,1,101)
@@ -269,7 +269,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
 def save_and_plot(func):
     def wrapper_func(*args,**kwargs):
         model,kernels = func(*args,**kwargs)
-        name,name_kernel = './best_models/best_model', kernels
+        name = './best_models/best_model'
         do_plot,save_model=args[-2],args[-1]
         X_train,Y_train,X_s = args[0],args[1],args[2]
         if do_plot :
@@ -279,9 +279,9 @@ def save_and_plot(func):
         if save_model :
             with open(name, 'wb') as f :
                 pickle.dump(model,f)
-            with open(name_kernel, 'wb') as f :
+            with open( './best_models/kernels', 'wb') as f :
                 pickle.dump(kernels,f)
-        return model,name_kernel
+        return model,kernels
     return wrapper_func
 
 
@@ -324,7 +324,7 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
     return outputs
 
 
-def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs",parralelize_code=False):
+def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False):
     """
         FInd best combinaison of kernel that descrive the training data , keep one best model at each step 
     inputs :
@@ -350,7 +350,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     """
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     kerns = tuple((KERNELS_OPS.keys()))
-    COMB,count = [],0
+    COMB,count,constant,old_model = [],0,0,""
     combination =  list(itertools.combinations(kerns, 1))
     train_length = (depth+1)*len(KERNELS) + len(KERNELS)
     for comb in combination :
@@ -367,6 +367,11 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             outputs = parralelize(X_train,Y_train,X_s,COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
             BEST_MODELS = update_best_model_after_parallelized_step(outputs,BEST_MODELS)
             print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop))
+            if old_model == BEST_MODELS['model_name'] :
+                constant += 1
+            old_model = BEST_MODELS['model_name']
+            if constant > 1 :
+                return BEST_MODELS["model"],BEST_MODELS["model_list"]
             if loop > 1 :
                 new_COMB = replacekernel(BEST_MODELS["model_list"])   #swap step 
                 print("Trying to switch kernels : trying {} ".format(new_COMB))

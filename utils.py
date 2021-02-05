@@ -60,14 +60,14 @@ KERNELS_LENGTH = {
     "LIN" : 2,
     "SE" : 2,
     "PER" :3,
-    #"CONST" : 1,
+    "CONST" : 1,
     #"WN" : 1,
     #"RQ" : 3,
 }
 
 KERNELS = {
     "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    #"CONST" : {"parameters":["const_sigma"]},
+    "CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
     #"WN" : {"paramters_Wn":["white_noise_sigma"]},
@@ -82,7 +82,7 @@ KERNELS_OPS = {
     "+LIN" : "add",
     "+SE" : "add",
     "+PER" : "add",
-    #"+CONST" :"add",
+    "+CONST" :"add",
     #"*CONST" : "mul",
     #"+WN" :"add",
     #"*WN" : "mul",
@@ -175,7 +175,7 @@ def compute_posterior(y,cov,cov_s,cov_ss):
     cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
     return mu,cov
 
-
+@tf.function
 def log_cholesky_l_test(X,Y,params,kernel):
     num = 0
     params_name = list(params.keys())
