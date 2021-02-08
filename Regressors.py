@@ -63,7 +63,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    @tf.function
+    #@tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
@@ -116,7 +116,10 @@ class CustomModel(object):
         params= self._variables
         n =tf.Variable(X_train.shape[0],dtype=_precision)
         k = tf.Variable(len(kernels_name),dtype=_precision)
-        ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
+        try :
+            ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
+        except Exception :
+            pass
         return  -ll - 0.5*k*tf.math.log(n)
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
@@ -241,14 +244,11 @@ class GPyWrapper(object):
             kernels = preparekernel(element,scipy=True)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             params = [list_params[position] for position in pos[loop_counter]]
-            print(element)
-            print(params)
             loop_counter += 1
             try :
                 k = self._gpy_kernels_from_names(element,params)
             except Exception as e :
                 print(e)
-            print(kernel)
             model = GPy.models.GPRegression(X_train, Y_train, k, normalizer=False)
             model.plot()
             loop_counter += 1

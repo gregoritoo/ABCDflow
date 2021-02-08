@@ -20,6 +20,7 @@ import functools
 import os
 import time
 
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 
@@ -60,14 +61,14 @@ KERNELS_LENGTH = {
     "LIN" : 2,
     "SE" : 2,
     "PER" :3,
-    "CONST" : 1,
+    #"CONST" : 1,
     #"WN" : 1,
     #"RQ" : 3,
 }
 
 KERNELS = {
     "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    "CONST" : {"parameters":["const_sigma"]},
+    #"CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
     #"WN" : {"paramters_Wn":["white_noise_sigma"]},
@@ -82,7 +83,7 @@ KERNELS_OPS = {
     "+LIN" : "add",
     "+SE" : "add",
     "+PER" : "add",
-    "+CONST" :"add",
+    #"+CONST" :"add",
     #"*CONST" : "mul",
     #"+WN" :"add",
     #"*WN" : "mul",
@@ -91,10 +92,10 @@ KERNELS_OPS = {
 }
 
 GPY_KERNELS = {
-    "LIN" : GPy.kern.Linear,
-    "SE" : GPy.kern.sde_Exponential,
-    "PER" :GPy.kern.StdPeriodic,
-    "RQ" : GPy.kern.RatQuad,
+    "LIN" : GPy.kern.Linear(1),
+    "SE" : GPy.kern.sde_Exponential(1),
+    "PER" :GPy.kern.StdPeriodic(1),
+    "RQ" : GPy.kern.RatQuad(1),
 }
 
 def make_df(X,stdp,stdi):
@@ -144,21 +145,7 @@ def print_trainning_steps(count,train_length,combinaison_element):
     sys.stdout.write("\n")
     sys.stdout.flush()
 
-def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=False):
-    '''
-        Update the BEST_MODELS dictionnary if the specific input model has a higher BIC score
-    '''
-    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
-        BEST_MODELS["model_name"] = kernels_name
-        BEST_MODELS["model_list"] = kernel_list
-        BEST_MODELS["score"] = BIC 
-        if not GPy :
-            BEST_MODELS["model"] = model
-            BEST_MODELS["init_values"] =  model.initialisation_values
-        else :
-            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
-            BEST_MODELS["init_values"] =  model.param_array()
-    return BEST_MODELS
+
 
 def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
     for element in outputs_threadpool :
@@ -169,13 +156,13 @@ def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
                 BEST_MODELS = element
     return BEST_MODELS
 
-@tf.function
+#@tf.function
 def compute_posterior(y,cov,cov_s,cov_ss):
     mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
     cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
     return mu,cov
 
-@tf.function
+#@tf.function
 def log_cholesky_l_test(X,Y,params,kernel):
     num = 0
     params_name = list(params.keys())
@@ -231,6 +218,22 @@ def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.
         OPTIMIZER.apply_gradients(gradient,model.variables)
     return val
 
+
+def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=False):
+    '''
+        Update the BEST_MODELS dictionnary if the specific input model has a higher BIC score
+    '''
+    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
+        BEST_MODELS["model_name"] = kernels_name
+        BEST_MODELS["model_list"] = kernel_list
+        BEST_MODELS["score"] = BIC 
+        if not GPy :
+            BEST_MODELS["model"] = model
+            BEST_MODELS["init_values"] =  model.initialisation_values
+        else :
+            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
+            BEST_MODELS["init_values"] =  model.param_array()
+    return BEST_MODELS
 
 
 def whitenning_datas(X):

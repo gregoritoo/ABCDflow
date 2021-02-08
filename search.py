@@ -21,7 +21,7 @@ import contextlib
 import functools
 import time
 import scipy 
-from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS
+from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
 
 
 PI = m.pi
@@ -153,7 +153,7 @@ def replacekernel(_kernel_list):
             for replace_object in KERNELS.keys() :
                 if element[1:] != replace_object :
                     replaced[counter] = element[0] + replace_object
-                COMB.append(replaced)
+                if replaced not in COMB : COMB.append(replaced)
                 replaced = list(_kernel_list)
             counter +=1
         return COMB

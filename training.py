@@ -22,7 +22,7 @@ import contextlib
 import functools
 import time
 import scipy 
-from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel
+from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel,gpy_kernels_from_names
 from utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
 
 
@@ -253,7 +253,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             Y_train = whitenning_datas(Y_train)
             X_s = whitenning_datas(X_s)
     i=-1 
-    if experimental_multiprocessing :
+    if experimental_multiprocessing and not GPY:
         model,kernels = multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
                                         verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model)
         return model,kernels
@@ -372,7 +372,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
             old_model = BEST_MODELS['model_name']
             if constant > 1 :
                 return BEST_MODELS["model"],BEST_MODELS["model_list"]
-            if loop > 1 :
+            if loop > 2 :
                 new_COMB = replacekernel(BEST_MODELS["model_list"])   #swap step 
                 print("Trying to switch kernels : trying {} ".format(new_COMB))
                 outputs = parralelize(X_train,Y_train,X_s,new_COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
@@ -465,8 +465,15 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                 model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
                 model.optimize_restarts(initialisation_restart)
                 BIC = -model.objective_function()
-                BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=True)
-                TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]                
+                if  BIC > BEST_MODELS["score"]  : 
+                    BEST_MODELS["model_name"] = kernels_name
+                    BEST_MODELS["model_list"] = kernel_list
+                    BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
+                    BEST_MODELS["score"] = BIC 
+                    BEST_MODELS["init_values"] =  model.param_array()
+                    TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC] 
+                print(BEST_MODELS)
+                TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]              
     except Exception as e:
         print("error with kernel :",kernels_name)
     if prune :
@@ -509,15 +516,31 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
         if mode == "lfbgs" : kernels = preparekernel(kernel_list)
         else : kernels = preparekernel(kernel_list)
         if kernels_name[0] != "*" :
-            while true_restart < initialisation_restart :
+            if not GPY :
+                while true_restart < initialisation_restart :
+                    try :
+                        model=CustomModel(kernels,init_values)
+                        model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
+                        BIC = model.compute_BIC(X_train,Y_train,kernel_list)
+                        BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
+                        true_restart += 1     
+                    except Exception :
+                        pass    
+            else :
                 try :
-                    model=CustomModel(kernels,init_values)
-                    model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
-                    BIC = model.compute_BIC(X_train,Y_train,kernel_list)
-                    BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
-                    true_restart += 1     
-                except Exception :
-                    pass              
+                    k = gpy_kernels_from_names(kernel_list)
+                    model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
+                    model.optimize_restarts(initialisation_restart)
+                    BIC = -model.objective_function()
+                    if  BIC > BEST_MODELS["score"]  : 
+                        BEST_MODELS["model_name"] = kernels_name
+                        BEST_MODELS["model_list"] = kernel_list
+                        BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
+                        BEST_MODELS["score"] = BIC 
+                        BEST_MODELS["init_values"] =  model.param_array() 
+                except Exception as e :
+                    print(e)
+                    pass         
     except Exception as e:
         print("error with kernel :",kernels_name)
     else :
