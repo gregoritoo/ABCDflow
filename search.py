@@ -26,7 +26,7 @@ from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
 
 PI = m.pi
 _precision = tf.float64
-config = tf.compat.v1.ConfigProto()
+config = tf.compat.v1.ConfigProto(device_count = {'GPU': 0})
 config.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=config)
 
@@ -66,7 +66,7 @@ def addkernel(kernels_name,_kernel_list,new_k):
     _kernel_list = _kernel_list + ["+"+new_k]
     return kernels_name,_kernel_list
 
-def preparekernel(_kernel_list,scipy=True):
+def preparekernel(_kernel_list):
     '''
         Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
     inputs :

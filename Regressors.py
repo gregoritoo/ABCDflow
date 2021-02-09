@@ -171,7 +171,7 @@ class CustomModel(object):
         loop_counter= 0
         cov = 0
         for element in splitted :
-            kernels = preparekernel(element,scipy=True)
+            kernels = preparekernel(element)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
@@ -241,7 +241,7 @@ class GPyWrapper(object):
         loop_counter= 0
         counter = 0
         for element in splitted :
-            kernels = preparekernel(element,scipy=True)
+            kernels = preparekernel(element)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             params = [list_params[position] for position in pos[loop_counter]]
             loop_counter += 1

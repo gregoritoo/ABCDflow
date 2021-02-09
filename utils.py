@@ -21,6 +21,7 @@ import os
 import time
 
 
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 
@@ -156,7 +157,6 @@ def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
                 BEST_MODELS = element
     return BEST_MODELS
 
-#@tf.function
 def compute_posterior(y,cov,cov_s,cov_ss):
     mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
     cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
@@ -219,34 +219,13 @@ def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.
     return val
 
 
-def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=False):
-    '''
-        Update the BEST_MODELS dictionnary if the specific input model has a higher BIC score
-    '''
-    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
-        BEST_MODELS["model_name"] = kernels_name
-        BEST_MODELS["model_list"] = kernel_list
-        BEST_MODELS["score"] = BIC 
-        if not GPy :
-            BEST_MODELS["model"] = model
-            BEST_MODELS["init_values"] =  model.initialisation_values
-        else :
-            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
-            BEST_MODELS["init_values"] =  model.param_array()
-    return BEST_MODELS
+
 
 
 def whitenning_datas(X):
     mean, var = tf.nn.moments(X,axes=[0])
     X = (X - mean) / var
     return X
-
-
-def loss_function(x_u_train, u_train, network):
-    u_pred = tf.cast(network(x_u_train), dtype=tf.float32)
-    loss_value = tf.reduce_mean(tf.square(u_train - u_pred))
-    return tf.cast(loss_value, dtype=tf.float32)
-
 
 
 

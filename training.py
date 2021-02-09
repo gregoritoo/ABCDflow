@@ -28,7 +28,7 @@ from utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
 
 PI = m.pi
 _precision = tf.float64
-config = tf.compat.v1.ConfigProto()
+config = tf.compat.v1.ConfigProto(device_count = {'GPU': 0})
 config.gpu_options.allow_growth = True
 config.inter_op_parallelism_threads = 44
 config.intra_op_parallelism_threads = 44
@@ -90,7 +90,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
                 best_model = model
     elif "lfbgs" :
         try :
-            nb_iter = max(nb_iter,100)
+            nb_iter = max(nb_iter,200)
             #results = train_step_lfgbs(X_train,Y_train,model._opti_variables,kernels_name)
             func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
             init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
@@ -221,7 +221,7 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
                         verbose=False,nb_by_step=None,loop_size=10,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs"):
     '''
-        Launch the analysis
+        Main function wich launch the search in the model space 
     inputs :
         X_train : Tensor, Training X
         Y_train : Tensor, Training Y
@@ -267,6 +267,9 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
         return model,name_kernel
    
 def save_and_plot(func):
+    '''
+        Decorator to plot the figure and pickle the model if user validate it.
+    '''
     def wrapper_func(*args,**kwargs):
         model,kernels = func(*args,**kwargs)
         name = './best_models/best_model'
@@ -288,7 +291,7 @@ def save_and_plot(func):
 @save_and_plot
 def multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
                                         verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,parralelize_code,do_plot,save_model):
-    print("This is experimental, the accuracy may varie a lot  !")
+    print("This is experimental, the speed may varie a lot !")
     try :
         model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
                                     verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code)
@@ -314,10 +317,10 @@ def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop
 
 def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode):
     ''' 
-        Use class multiprocessing.dummies to multithread one step train
+        Use class multiprocessing.dummies to multithread one step train , keep all the score of every models in order to compared them lately 
     '''
     params = [[X_train,Y_train,X_s,comb,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,mode,False,False,initialisation_restart,GPY] for comb in combi]
-    pool = ThreadPool()
+    pool = ThreadPool(36)
     outputs = pool.starmap(search_step_parrallele,params)
     pool.close()
     pool.join()
@@ -326,7 +329,7 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False):
     """
-        FInd best combinaison of kernel that descrive the training data , keep one best model at each step 
+        FInd best combinaison of kernel that descrive the training data , keep one best model at each step contrary to the greedy seach of the analyse function
     inputs :
         X_train : Tensor, Training X
         Y_train : Tensor, Training Y
@@ -416,7 +419,8 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
 def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restart,nb_iter, \
                                         nb_by_step,prune,verbose,OPTIMIZER,mode="lfbgs",unique=False,single=False,initialisation_restart=5,GPY=False):
     '''
-        Launch the training of a gaussian process
+        Launch the training of a single gaussian process : Create model, initialize params with the params of the previous best models, launch the optimization
+        compute BIC and update the best models array if BIC > best_model's score  
     inputs :
         X_train : Tensor, Training X
         Y_train : Tensor, Training Y
@@ -446,8 +450,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         if single : kernel_list = combi
         kernels_name = ''.join(combi)
         true_restart = 0
-        if mode == "lfbgs" : kernels = preparekernel(kernel_list,scipy=True)
-        else : kernels = preparekernel(kernel_list)
+        kernels = preparekernel(kernel_list)
         if kernels_name[0] != "*" :
             if not GPY : 
                 while true_restart < initialisation_restart :
@@ -456,7 +459,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
-                        TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])]  
+                        if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])]  
                         true_restart += 1     
                     except Exception :
                         pass  
@@ -465,15 +468,8 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                 model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
                 model.optimize_restarts(initialisation_restart)
                 BIC = -model.objective_function()
-                if  BIC > BEST_MODELS["score"]  : 
-                    BEST_MODELS["model_name"] = kernels_name
-                    BEST_MODELS["model_list"] = kernel_list
-                    BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
-                    BEST_MODELS["score"] = BIC 
-                    BEST_MODELS["init_values"] =  model.param_array()
-                    TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC] 
-                print(BEST_MODELS)
-                TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]              
+                BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=True)
+                if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]               
     except Exception as e:
         print("error with kernel :",kernels_name)
     if prune :
@@ -485,7 +481,8 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
 def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart,nb_iter, \
                                         nb_by_step,prune,verbose,OPTIMIZER,mode="lfbgs",unique=False,single=False,initialisation_restart=10,GPY=False):
     '''
-        Launch the training of a gaussian process
+        Launch the training of a single gaussian process : Create model, initialize params with the params of the previous best models, launch the optimization
+        compute BIC and keep the score in a dictionnary (not to use shared BEST_MODELS dictionnary variable)
     inputs :
         X_train : Tensor, Training X
         Y_train : Tensor, Training Y
@@ -513,8 +510,7 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
         if single : kernel_list = combi
         kernels_name = ''.join(combi)
         true_restart = 0
-        if mode == "lfbgs" : kernels = preparekernel(kernel_list)
-        else : kernels = preparekernel(kernel_list)
+        kernels = preparekernel(kernel_list)
         if kernels_name[0] != "*" :
             if not GPY :
                 while true_restart < initialisation_restart :
@@ -532,12 +528,7 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
                     model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
                     model.optimize_restarts(initialisation_restart)
                     BIC = -model.objective_function()
-                    if  BIC > BEST_MODELS["score"]  : 
-                        BEST_MODELS["model_name"] = kernels_name
-                        BEST_MODELS["model_list"] = kernel_list
-                        BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
-                        BEST_MODELS["score"] = BIC 
-                        BEST_MODELS["init_values"] =  model.param_array() 
+                    BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=True)
                 except Exception as e :
                     print(e)
                     pass         
@@ -548,3 +539,19 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
 
 
 
+
+def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=False):
+    '''
+        Update the BEST_MODELS dictionnary if the specific input model has a higher BIC score
+    '''
+    if  BIC > BEST_MODELS["score"] and BIC != float("inf") : 
+        BEST_MODELS["model_name"] = kernels_name
+        BEST_MODELS["model_list"] = kernel_list
+        BEST_MODELS["score"] = BIC 
+        if not GPy :
+            BEST_MODELS["model"] = model
+            BEST_MODELS["init_values"] =  model.initialisation_values
+        else :
+            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
+            BEST_MODELS["init_values"] =  model.param_array()
+    return BEST_MODELS
