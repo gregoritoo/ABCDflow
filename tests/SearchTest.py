@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from search import preparekernel,search_and_add,prune,replacekernel
 import unittest 
 

@@ -1,17 +1,10 @@
 import numpy as np 
 import tensorflow as tf 
-from pprint import pprint
 import logging
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
-import matplotlib.pyplot as plt 
 import math as m
-import seaborn as sn
-import GPy
 import sys 
 import os 
-
-
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 
@@ -49,7 +42,14 @@ def WN(x,y,sigma):
 def PER(x,y1,params):
     l,p,sigma = params[0],params[1],params[2]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
-    w = sigma * tf.math.exp(2*(-1/tf.math.square(l))*tf.math.square(tf.math.sin(PI/p*tf.math.abs(tf.math.subtract(tf.transpose(tf.tile(tf.transpose(x), tf.constant([y1.shape[0],1]))),tf.transpose(tf.tile(y1, tf.constant([1,x.shape[0]]))))))))
+    x1 = tf.transpose(x)
+    multiply_y = tf.constant([1,x.shape[0]])
+    y2 = tf.transpose(tf.tile(y1, multiply_y))
+    multiply_x = tf.constant([y1.shape[0],1])
+    x2 = tf.transpose(tf.tile(x1, multiply_x))
+    const_1 = tf.cast(PI/p,dtype=_precision)
+    const_2 = tf.cast(2*(-1/tf.math.square(l)),dtype=_precision)
+    w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
 @tf.function
@@ -58,10 +58,10 @@ def SE(x,y1,params):
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
     multiply_y = tf.constant([1,x.shape[0]])
-    y2 = tf.transpose(tf.tile(y1, multiply_y))
+    y2 =  tf.transpose(tf.tile(y1, multiply_y))
     multiply_x = tf.constant([y1.shape[0],1])
-    x2 = tf.transpose(tf.tile(x1, multiply_x))
-    const_1 = 0.5*tf.cast(-1/tf.math.square(l),dtype=_precision)
+    x2 =  tf.cast(tf.transpose(tf.tile(x1, multiply_x)),dtype=_precision)
+    const_1 = tf.cast(0.5*tf.cast(-1/tf.math.square(l),dtype=_precision),dtype=_precision)
     return sigma*tf.math.exp(tf.math.square(tf.math.subtract(y2,x2))*const_1)
 
 
