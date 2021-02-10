@@ -1,35 +1,10 @@
 
-import numpy as np 
-import tensorflow as tf 
+import numpy as np  
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.keras.backend.set_floatx('float64')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
 import sys 
-from Regressors import * 
-from utils import train_step
 import pandas as pd 
-from itertools import chain
-import itertools
-import pickle 
-import multiprocessing
-from multiprocessing import Pool
-import contextlib
-import functools
-import time
-import scipy 
 from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
-
-
-PI = m.pi
-_precision = tf.float64
-config = tf.compat.v1.ConfigProto(device_count = {'GPU': 0})
-config.gpu_options.allow_growth = True
-session = tf.compat.v1.Session(config=config)
-
+import itertools 
 borne = -1*10e40
 
 
@@ -130,7 +105,7 @@ def prune(tempbest,rest):
 
 
 
-def search_and_add(_kernel_list):
+def search_and_add(kernel_tuple):
     ''' 
         Return all possible combinaison for one step
     inputs :
@@ -140,7 +115,7 @@ def search_and_add(_kernel_list):
     COMB = []
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
-        COMB.append(_kernel_list+comb)
+        COMB.append(kernel_tuple+comb)
     return COMB
 
 

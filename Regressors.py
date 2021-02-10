@@ -21,7 +21,18 @@ _precision = tf.float64
 
 
 class CustomModel(object):
+    '''
+        Custom model to do gaussian processes regression 
+    '''
     def __init__(self,params,existing=None):
+        '''
+            Initialize default class dic with parameters corresponding to kernels 
+        inputs :
+            params dic, containing parameters according to the kernels
+            existing dic, containing parameters with converged values of previous training (in order to initialize optimization at previous minimum)
+        outputs :
+            None
+        '''
         for attr in params.keys() :
             pars = params[attr]
             for var in pars :

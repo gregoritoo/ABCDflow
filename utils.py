@@ -70,7 +70,7 @@ KERNELS_LENGTH = {
 KERNELS = {
     "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
     #"CONST" : {"parameters":["const_sigma"]},
-    "SE" : {"parameters":["squaredexp_l","squaredexp_sigma"]},
+    "SE" : {"parameters_se":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
     #"WN" : {"paramters_Wn":["white_noise_sigma"]},
     #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
@@ -134,6 +134,17 @@ def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
     
 
 def get_values(mu_s,cov_s,nb_samples=100):
+    '''
+        Get prediction using predicted mean and covariance function
+    inputs
+        mu_s array, predicted mean
+        cov_s array, predicted covariance
+        nb_samples int, number of sample to draw to estimate prediction
+    outputs 
+        mean numpy array, predicted mean
+        stdp numpy array, upper bound of 99% CI
+        stdi numpy array, lower bound of 99% CI
+    '''
     samples = np.random.multivariate_normal(mu_s,cov_s,nb_samples)
     stdp = [np.mean(samples[:,i])+1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
     stdi = [np.mean(samples[:,i])-1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
@@ -141,6 +152,15 @@ def get_values(mu_s,cov_s,nb_samples=100):
     return mean,stdp,stdi
 
 def print_trainning_steps(count,train_length,combinaison_element):
+    '''
+        Print the avancing of the training ex, ==>..|
+    inputs :
+        count, int, actual training step 
+        train_length, int max training step
+        combinaison_element, tuple containing the model's kernel 
+    outputs :
+        None
+    '''
     sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length-count)/train_length*50)+"|"+" * model is {} ".format(combinaison_element))
     sys.stdout.flush()
     sys.stdout.write("\n")
@@ -158,12 +178,35 @@ def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
     return BEST_MODELS
 
 def compute_posterior(y,cov,cov_s,cov_ss):
+    '''
+        Compute posterior mean vector and posterior covariance matrix 
+         mu = transpose(K*).(K+s^2*I)^-1.y
+         cov = K**-transpose(K*).(K+s^2*I)^-1.K*
+    inputs :
+        Y tf Tensor, training x
+        cov tf Tensor, training data y
+        cov_s tf Tensor, 
+        cov_ss tf Tensor, 
+    outputs:
+        mu tf Tensor, tensor containing predicted values 
+        cov tf Tensor, tensor used to compute confidence interval 
+    '''
     mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
     cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
     return mu,cov
 
-#@tf.function
+
 def log_cholesky_l_test(X,Y,params,kernel):
+    '''
+        Compute negative log-likelihood using cholesky decomposition 
+    inputs :
+        X tf Tensor, training x
+        Y tf Tensor, training data y
+        params list, vector containing model's params
+        kernel list, list containg model's kernel and theirs operations
+    outputs:
+        loss float64, negative log likelihood
+    '''
     num = 0
     params_name = list(params.keys())
     cov = 1
@@ -196,6 +239,18 @@ def log_cholesky_l_test(X,Y,params,kernel):
 
 
 def train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
+    '''
+        Single step of training using first ordre stochastic gradient descent 
+    inputs 
+        model CustomModel object 
+        iteration int itération counter non used 
+        X_train tf Tensor,
+        Y_train tf Tensor,
+        kernels_names list , list of kernels of the model
+        OPTIMIZER tf.optimizers 
+    outputs 
+        val float, objective function value 
+    '''
     with tf.GradientTape(persistent=False) as tape :
         tape.watch(model.variables)
         val = model(X_train,Y_train,kernels_name)
@@ -208,6 +263,18 @@ def train_step(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimiz
 
 
 def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
+    '''
+        Single step of training using first ordre stochastic gradient descent 
+    inputs 
+        model CustomModel object 
+        iteration int itération counter non used 
+        X_train tf Tensor,
+        Y_train tf Tensor,
+        kernels_names list , list of kernels of the model
+        OPTIMIZER tf.optimizers 
+    outputs 
+        val float, objective function value 
+    '''
     with tf.GradientTape(persistent=False) as tape :
         tape.watch(model.variables)
         val = model(X_train,Y_train)  
