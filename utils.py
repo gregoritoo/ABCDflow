@@ -19,7 +19,7 @@ import contextlib
 import functools
 import os
 import time
-
+import seaborn as sn
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -220,17 +220,27 @@ def log_cholesky_l_test(X,Y,params,kernel):
             num += KERNELS_LENGTH[op[1:]]
         elif op[0] == "*":
             method = KERNELS_FUNCTIONS[op[1:]]
-            method = KERNELS_FUNCTIONS[op[1:]]
             par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
             if not method:
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov  = tf.math.multiply(cov,method(X,X,[params[p] for p in par]))
             num += KERNELS_LENGTH[op[1:]]
+        elif op[0] == "C":
+            kernel_list = op[3:-1].replace(" ","").split(",")
+            left_method = KERNELS_FUNCTIONS[kernel_list[0][1:-1]]
+            par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][1:-1]]]
+            num += KERNELS_LENGTH[kernel_list[0][1:-1]]
+            right_method = KERNELS_FUNCTIONS[kernel_list[1][1:-1]]
+            par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][1:-1]]]
+            num += KERNELS_LENGTH[kernel_list[1][1:-1]]
+            par_name_sigmoid,num = params_name[num:num+2],num+2
+            print([params[p] for p in par_name_sigmoid])
+            cov += kernels.CP(X,X,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
     decomposed, _jitter,loop = False, 10e-7, 0
     try :
         _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)
     except Exception as e :
-        pass
+        print(e)
     _temp = tf.cast(tf.linalg.solve(_L, Y),dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp),dtype=_precision)
     loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y),alpha),dtype=_precision) + tf.cast(tf.math.log(tf.linalg.det(_L)),dtype=_precision) +0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]),dtype=_precision)
@@ -371,10 +381,11 @@ def function_factory(model, loss_f, X, Y,params,kernel):
        
         # store loss value so we can retrieve later
         tf.py_function(f.history.append, inp=[loss_value], Tout=[])
-        return np.array(loss_value.numpy(), order='F'),np.array(grads.numpy(), order='F')
+        #return loss_value ,grads
+        return np.array(loss_value, order='F'),np.array(grads, order='F')
 
     # store these information as members so we can use them outside the scope
-    f.iter = tf.Variable(0)
+    f.iter = tf.convert_to_tensor(0)
     f.idx = idx
     f.part = part
     f.shapes = shapes

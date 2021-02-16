@@ -44,6 +44,16 @@ class CustomModel(object):
                 else :
                     if var in existing.keys() :
                         self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
+                    elif var[:2] != "cp_s":
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=2.))
+                    elif var[:4] != "cp_x0":
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(minval=99., maxval=100.))
                     else :
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
@@ -74,7 +84,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    #@tf.function
+    @tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
@@ -120,6 +130,16 @@ class CustomModel(object):
                     raise NotImplementedError("Method %s not implemented" % op[1:])
                 cov  = tf.math.multiply(cov,method(X,Y,[params[p] for p in par]))
                 num += KERNELS_LENGTH[op[1:]]
+            elif op[0] == "C":
+                kernel_list = op[3:-1].replace(" ","").split(",")
+                left_method = KERNELS_FUNCTIONS[kernel_list[0][1:-1]]
+                par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][1:-1]]]
+                num += KERNELS_LENGTH[kernel_list[0][1:-1]]
+                right_method = KERNELS_FUNCTIONS[kernel_list[1][1:-1]]
+                par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][1:-1]]]
+                num += KERNELS_LENGTH[kernel_list[1][1:-1]]
+                par_name_sigmoid,num = params_name[num:num+2],num+2
+                cov += kernels.CP(X,Y,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
         return cov
 
 
