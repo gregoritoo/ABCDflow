@@ -234,7 +234,6 @@ def log_cholesky_l_test(X,Y,params,kernel):
             par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][1:-1]]]
             num += KERNELS_LENGTH[kernel_list[1][1:-1]]
             par_name_sigmoid,num = params_name[num:num+2],num+2
-            print([params[p] for p in par_name_sigmoid])
             cov += kernels.CP(X,X,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
     decomposed, _jitter,loop = False, 10e-7, 0
     try :

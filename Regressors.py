@@ -91,10 +91,11 @@ class CustomModel(object):
 
     def viewVar(self,kernels):
         list_vars = self.variables
+        print(list_vars)
         print("\n Parameters of  : {}".format(kernels))
         print("   var name               |               value")
-        for var in list_vars : 
-            print("   {}".format(str(var.name))+" "*int(23-int(len(str(var.name))))+"|"+" "*int(23-int(len(str(var.numpy()))))+"{}".format(var.numpy()))
+        for name,value in zip(self._opti_variables_name, self.variables) : 
+            print("   {}".format(str(name))+" "*int(23-int(len(str(name))))+"|"+" "*int(23-int(len(str(value.numpy()))))+"{}".format(value.numpy()))
 
 
     def predict(self,X_train,Y_train,X_s,kernels_name):
@@ -146,7 +147,7 @@ class CustomModel(object):
     def compute_BIC(self,X_train,Y_train,kernels_name):
         params= self._variables
         n =tf.Variable(X_train.shape[0],dtype=_precision)
-        k = tf.Variable(len(kernels_name),dtype=_precision)
+        k = tf.Variable(len(params),dtype=_precision)
         try :
             ll = log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
         except Exception :

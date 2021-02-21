@@ -75,7 +75,7 @@ def preparekernel(_kernel_list):
 
 
 
-def search(kernels_name,_kernel_list,init,depth=5):
+def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False):
     '''
         Return all the possible combinaison of kernels starting with a '+' 
     inputs :
@@ -91,6 +91,8 @@ def search(kernels_name,_kernel_list,init,depth=5):
         for comb in combination :
             if not comb[0][0] == "*" : 
                 COMB.append(comb)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple)
     return COMB
 
 
@@ -127,7 +129,7 @@ def prepare_changepoint(COMB,kernel_tuple=None):
             COMB.append(("CP"+str(comb),))
     return COMB
 
-def search_and_add(kernel_tuple):
+def search_and_add(kernel_tuple,use_changepoint=False):
     ''' 
         Return all possible combinaison for one step
     inputs :
@@ -138,17 +140,19 @@ def search_and_add(kernel_tuple):
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
         COMB.append(kernel_tuple+comb)
-    COMB = prepare_changepoint(COMB,kernel_tuple)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple)
     return COMB
 
-def first_kernel():
+def first_kernel(use_changepoint=False):
     COMB =[]
     kerns = tuple((KERNELS_OPS.keys()))
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
         if comb[0][0] != "*" : 
             COMB.append(comb)
-    COMB = prepare_changepoint(COMB,kernel_tuple=None)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple=None)
     return COMB
         
 
@@ -182,5 +186,3 @@ def gpy_kernels_from_names(_kernel_list):
     return kernel
 
 
-if __name__ == "__main__" :
-    print(search_and_add(('+PER',)))

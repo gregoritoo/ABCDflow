@@ -98,7 +98,7 @@ def dec_sigmoid(y,s,cp):
 
 
 def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
-    cp,s  = params[0],params[1]
+    cp,s  = params[1],params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
     x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
