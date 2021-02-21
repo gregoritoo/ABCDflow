@@ -58,7 +58,7 @@ def preparekernel(_kernel_list):
         else :
             kernels = kernel[3:-1].replace(" ","").split(",")
             for kernel in kernels :
-                dic += (KERNELS[kernel[1:-1]],)
+                dic += (KERNELS[kernel[2:-1]],)
             dic += ({"changepoint":["cp_s","cp_x0"]},)
     kernels={}
     i = 1
@@ -73,6 +73,39 @@ def preparekernel(_kernel_list):
             i+=1
     return kernels
 
+
+def decomposekernel(_kernel_list):
+    '''
+        Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
+    inputs :
+        _kernels_list : list of string, list of kernels with theirs according operation
+    outputs :
+        kernels : dict, dict cotaining kernel parameters (see KERNELS)
+    '''
+    dic = tuple()
+    for kernel in _kernel_list :
+        if kernel[-3 :] == "SIG" :
+            dic += (KERNELS[kernel[1:-8]],)
+        else :
+            try :
+                kernels = kernel[3:-1].replace(" ","").split(",")
+                for kernel in kernels :
+                    dic += (KERNELS[kernel[2:-1]],)
+                dic += ({"changepoint":["cp_s","cp_x0"]},)
+            except :
+                pass
+    kernels={}
+    i = 1
+    for para in dic :
+        for key,value in para.items() :
+            if key in kernels.keys() :
+                if key != "noise" :
+                    key = key+"_"+str(i)
+                    kernels.update({key:[element+"_"+str(i) for element in value]})    # add changepoint ahead of according parameters
+            else :
+                kernels.update({key:[element for element in value]})
+            i+=1
+    return kernels
 
 
 def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False):
@@ -120,8 +153,8 @@ def prepare_changepoint(COMB,kernel_tuple=None):
     kerns = tuple()
     for key,value in KERNELS_OPS.items() :
         if key[0]=="+" :
-            kerns += (key[1:],)
-    combination =  list(itertools.permutations(kerns, 2))
+            kerns += (key[:],)
+    combination = combination =  [p for p in itertools.product(kerns, repeat=2)]# list(itertools.permutations(kerns, 2))
     for comb in combination :
         if kernel_tuple is not None :
             COMB.append(kernel_tuple+("CP"+str(comb),))

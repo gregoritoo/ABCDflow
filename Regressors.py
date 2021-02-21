@@ -11,7 +11,7 @@ from language import *
 import kernels as kernels 
 import itertools
 from language import *
-from search import preparekernel
+from search import preparekernel,decomposekernel
 from utils import KERNELS_FUNCTIONS,GPY_KERNELS
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -24,7 +24,7 @@ class CustomModel(object):
     '''
         Custom model to do gaussian processes regression 
     '''
-    def __init__(self,params,existing=None):
+    def __init__(self,params,existing=None,X_train=None):
         '''
             Initialize default class dic with parameters corresponding to kernels 
         inputs :
@@ -37,23 +37,36 @@ class CustomModel(object):
             pars = params[attr]
             for var in pars :
                 if existing is  None :
-                    self.__dict__[var] = tf.compat.v1.get_variable(var,
+                    if var[:4] == "cp_s":
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=0.95, maxval=1.1))
+                    elif var[:5] == "cp_x0":
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(minval=5., maxval=float(len(X_train))))
+                    else :
+                        self.__dict__[var] = tf.compat.v1.get_variable(var,
+                                dtype=_precision,
+                                shape=(1,),
+                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+                    
                 else :
                     if var in existing.keys() :
                         self.__dict__[var] = tf.Variable(existing[var],dtype=_precision)
-                    elif var[:2] != "cp_s":
+
+                    elif var[:4] == "cp_s":
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=2.))
-                    elif var[:4] != "cp_x0":
+                            initializer=tf.random_uniform_initializer(minval=0.95, maxval=1.))
+                    elif var[:4] == "cp_x0":
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=99., maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=5., maxval=float(len(X_train))))
                     else :
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
@@ -91,7 +104,6 @@ class CustomModel(object):
 
     def viewVar(self,kernels):
         list_vars = self.variables
-        print(list_vars)
         print("\n Parameters of  : {}".format(kernels))
         print("   var name               |               value")
         for name,value in zip(self._opti_variables_name, self.variables) : 
@@ -117,6 +129,8 @@ class CustomModel(object):
         cov = 0
         num = 0
         for op in kernel :
+            op = op.replace(":DEC_SIG","")
+            op = op.replace(":INC_SIG","")
             if op[0] == "+":
                 method = KERNELS_FUNCTIONS[op[1:]]
                 par =params_name[num:num+KERNELS_LENGTH[op[1:]]]
@@ -133,12 +147,12 @@ class CustomModel(object):
                 num += KERNELS_LENGTH[op[1:]]
             elif op[0] == "C":
                 kernel_list = op[3:-1].replace(" ","").split(",")
-                left_method = KERNELS_FUNCTIONS[kernel_list[0][1:-1]]
-                par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][1:-1]]]
-                num += KERNELS_LENGTH[kernel_list[0][1:-1]]
-                right_method = KERNELS_FUNCTIONS[kernel_list[1][1:-1]]
-                par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][1:-1]]]
-                num += KERNELS_LENGTH[kernel_list[1][1:-1]]
+                left_method = KERNELS_FUNCTIONS[kernel_list[0][2:-1]]
+                par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][2:-1]]]
+                num += KERNELS_LENGTH[kernel_list[0][2:-1]]
+                right_method = KERNELS_FUNCTIONS[kernel_list[1][2:-1]]
+                par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][2:-1]]]
+                num += KERNELS_LENGTH[kernel_list[1][2:-1]]
                 par_name_sigmoid,num = params_name[num:num+2],num+2
                 cov += kernels.CP(X,Y,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
         return cov
@@ -160,7 +174,10 @@ class CustomModel(object):
         except Exception as e :
             print(e)
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
-        if kernel_name is not None : plt.title("kernel :"+''.join(kernel_name)[1:])
+        if kernel_name is not None and kernel_name[:2] != "CP": 
+            plt.title("kernel :"+''.join(kernel_name)[1:])
+        elif kernel_name is not None : 
+            plt.title("kernel :"+''.join(kernel_name)[:])
         plot_gs_pretty(Y_train,np.array(mean),X_train,X_s,np.array(stdp),np.array(stdi))
         plt.show()
 
@@ -176,9 +193,19 @@ class CustomModel(object):
         list_params = []
         pos = 0
         for element in kernel_list :
-            if element[1] == "P" : 
+            if element[1] == "P" and element[0] != "C": 
                 list_params.append(params[pos:pos+3])
                 pos+=3
+            elif element[:2]== "CP" :
+                chgs_p = remove_useless_term_changepoint(element)
+                for kernels in chgs_p :
+                    if kernels[1] == "P" : 
+                        list_params.append(params[pos:pos+3])
+                        pos+=3
+                    else : 
+                        list_params.append(params[pos:pos+2])
+                        pos+=2
+                list_params.append(params[pos:pos+2])
             else : 
                 list_params.append(params[pos:pos+2])
                 pos+=2
@@ -203,9 +230,10 @@ class CustomModel(object):
         loop_counter= 0
         cov = 0
         for element in splitted :
-            kernels = preparekernel(element)
+            kernels = decomposekernel(element)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
+            print(merged,list_of_dic)
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
             decomp_model = CustomModel(kernels,dictionary)
             mu,cov = decomp_model.predict(X_train,Y_train,X_s,element)

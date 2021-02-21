@@ -227,12 +227,12 @@ def log_cholesky_l_test(X,Y,params,kernel):
             num += KERNELS_LENGTH[op[1:]]
         elif op[0] == "C":
             kernel_list = op[3:-1].replace(" ","").split(",")
-            left_method = KERNELS_FUNCTIONS[kernel_list[0][1:-1]]
-            par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][1:-1]]]
-            num += KERNELS_LENGTH[kernel_list[0][1:-1]]
-            right_method = KERNELS_FUNCTIONS[kernel_list[1][1:-1]]
-            par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][1:-1]]]
-            num += KERNELS_LENGTH[kernel_list[1][1:-1]]
+            left_method = KERNELS_FUNCTIONS[kernel_list[0][2:-1]]
+            par_name_left_method = params_name[num:num+KERNELS_LENGTH[kernel_list[0][2:-1]]]
+            num += KERNELS_LENGTH[kernel_list[0][2:-1]]
+            right_method = KERNELS_FUNCTIONS[kernel_list[1][2:-1]]
+            par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][2:-1]]]
+            num += KERNELS_LENGTH[kernel_list[1][2:-1]]
             par_name_sigmoid,num = params_name[num:num+2],num+2
             cov += kernels.CP(X,X,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
     decomposed, _jitter,loop = False, 10e-7, 0

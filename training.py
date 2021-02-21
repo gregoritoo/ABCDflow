@@ -94,7 +94,9 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
             func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
             init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
             # train the model with L-BFGS-B solver
-            bnds = list([(1e-2, None) for _ in range(len(model.variables)-1)])
+            bnds = list([(1e-2, None) for _ in range(len(model.variables)-3)])
+            bnds.append([0.99,1])
+            bnds.append([5,len(X_train)])
             bnds.append([1e-8,None])  # specific boundaries for the noise parameter
             results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=tuple(bnds),options={"maxiter":nb_iter})
             #print(results)
@@ -448,15 +450,16 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
         failed = 0
         if kernels_name[0] != "*" :
             if not GPY : 
-                while true_restart < initialisation_restart and failed < 30 :
+                while true_restart < initialisation_restart and failed < initialisation_restart * 2 :
                     try :
-                        model=CustomModel(kernels,init_values)
+                        model=CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
-                        print(BIC)
+                        if verbose :  print(BIC)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
-                        if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])]  
-                        true_restart += 1     
+                        if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])] 
+                        if math.isnan(BIC) == False or math.isinf(BIC) == False : 
+                            true_restart += 1     
                     except Exception :
                         failed +=1  
             else :
@@ -512,7 +515,7 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
             if not GPY :
                 while true_restart < initialisation_restart and failed < 20:
                     try :
-                        model=CustomModel(kernels,init_values)
+                        model=CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)

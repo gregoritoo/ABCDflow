@@ -48,7 +48,7 @@ def PER(x,y1,params):
     multiply_x = tf.constant([y1.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     const_1 = tf.cast(PI/p,dtype=_precision)
-    const_2 = tf.cast(2*(-1/tf.math.square(l)),dtype=_precision)
+    const_2 = tf.cast(0.5*(-1/tf.math.square(l)),dtype=_precision)
     w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
