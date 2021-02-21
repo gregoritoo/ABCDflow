@@ -83,22 +83,45 @@ def RQ(x,y,params):
     return sigma*w
 
 
-@tf.function
-def CP(x,y,params,inverse=False):
-    l,s = params[0],params[1]
+"""
+    sigmoid and dec_sigmoid directly compute in CP (same graph => gradient)
+"""
+def sigmoid(x,s,cp):
+    temp = cp*tf.ones_like(x,dtype=tf.float64)
+    return tf.math.divide(tf.ones_like(x,dtype=tf.float64),tf.math.add(tf.ones_like(x,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(x,temp))))
+
+def dec_sigmoid(y,s,cp):
+    one = tf.ones_like(y,dtype=tf.float64)
+    temp = cp*tf.ones_like(y,dtype=tf.float64)
+    return tf.math.subtract(one,tf.math.divide(tf.ones_like(y,dtype=tf.float64),tf.math.add(tf.ones_like(y,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y,temp)))))
+
+
+
+def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
+    cp,s  = params[1],params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
-    multiply_x = tf.constant([y.shape[0],1])
-    multiply_y = tf.constant([1,x.shape[0]])
-    x2 = tf.transpose(tf.tile(x1, multiply_x))
-    y2 = tf.transpose(tf.tile(y, multiply_y))
-    const = tf.cast(l/s,dtype=_precision)
-    temp = const*tf.ones_like(x2)
-    if not inverse : 
-        sigmax = 0.5*(1+tf.math.tanh(tf.math.subtract(temp,x2))) 
-        sigmay = 0.5*(1+tf.math.tanh(tf.math.subtract(temp,y2))) 
-        return tf.math.multiply(sigmax,sigmay)
-    else :
-        sigmax = tf.math.subtract(temp,0.5*(1+tf.math.tanh(tf.math.subtract(temp,x2))))
-        sigmay = tf.math.subtract(temp,0.5*(1+tf.math.tanh(tf.math.subtract(temp,y2))))
-        return tf.math.multiply(sigmax,sigmay)
+    x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
+    y2 = tf.transpose(tf.tile(y, tf.constant([1,x.shape[0]])))
+
+    #Pos sigmoid 
+    #x
+    temp_x = cp*tf.ones_like(x2,dtype=tf.float64)
+    sig_x = tf.math.divide(tf.ones_like(x2,dtype=tf.float64),tf.math.add(tf.ones_like(x2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(x2,temp_x))))
+    #y 
+    temp_y = cp*tf.ones_like(y2,dtype=tf.float64)
+    sig_y = tf.math.divide(tf.ones_like(y2,dtype=tf.float64),tf.math.add(tf.ones_like(y2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y2,temp_y))))
+    #Neg sigmoid 
+    #x
+    one_x = tf.ones_like(x2,dtype=tf.float64)
+    temp_x = cp*tf.ones_like(x2,dtype=tf.float64)
+    neg_sig_x = tf.math.subtract(one_x,tf.math.divide(tf.ones_like(x2,dtype=tf.float64),tf.math.add(tf.ones_like(x2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(x2,temp_x)))))
+    #y
+    one_y = tf.ones_like(y2,dtype=tf.float64)
+    temp_y = cp*tf.ones_like(y2,dtype=tf.float64)
+    neg_sig_y = tf.math.subtract(one_y,tf.math.divide(tf.ones_like(y2,dtype=tf.float64),tf.math.add(tf.ones_like(y2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y2,temp_y)))))
+
+    left = tf.math.multiply(tf.math.multiply(neg_sig_y,neg_sig_x),left_kern(x,y,left_params))
+    rigth = tf.math.multiply(tf.math.multiply(sig_y,sig_x),rigth_kern(x,y,rigth_params))
+    return tf.math.add(left,rigth)
+

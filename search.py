@@ -41,6 +41,8 @@ def addkernel(kernels_name,_kernel_list,new_k):
     _kernel_list = _kernel_list + ["+"+new_k]
     return kernels_name,_kernel_list
 
+
+
 def preparekernel(_kernel_list):
     '''
         Receive the list of kernels with theirs operations and return a dict with the kernels names and parameters 
@@ -49,7 +51,15 @@ def preparekernel(_kernel_list):
     outputs :
         kernels : dict, dict cotaining kernel parameters (see KERNELS)
     '''
-    dic = tuple([KERNELS[d[1:]] for d in _kernel_list])
+    dic = tuple()
+    for kernel in _kernel_list :
+        if not kernel[0] == "C" :
+            dic += (KERNELS[kernel[1:]],)
+        else :
+            kernels = kernel[3:-1].replace(" ","").split(",")
+            for kernel in kernels :
+                dic += (KERNELS[kernel[1:-1]],)
+            dic += ({"changepoint":["cp_s","cp_x0"]},)
     kernels={}
     i = 1
     for para in dic :
@@ -57,7 +67,7 @@ def preparekernel(_kernel_list):
             if key in kernels.keys() :
                 if key != "noise" :
                     key = key+"_"+str(i)
-                    kernels.update({key:[element+"_"+str(i) for element in value]})
+                    kernels.update({key:[element+"_"+str(i) for element in value]})    # add changepoint ahead of according parameters
             else :
                 kernels.update({key:[element for element in value]})
             i+=1
@@ -65,7 +75,7 @@ def preparekernel(_kernel_list):
 
 
 
-def search(kernels_name,_kernel_list,init,depth=5):
+def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False):
     '''
         Return all the possible combinaison of kernels starting with a '+' 
     inputs :
@@ -81,6 +91,8 @@ def search(kernels_name,_kernel_list,init,depth=5):
         for comb in combination :
             if not comb[0][0] == "*" : 
                 COMB.append(comb)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple)
     return COMB
 
 
@@ -104,8 +116,20 @@ def prune(tempbest,rest):
     return new_rest
 
 
+def prepare_changepoint(COMB,kernel_tuple=None):
+    kerns = tuple()
+    for key,value in KERNELS_OPS.items() :
+        if key[0]=="+" :
+            kerns += (key[1:],)
+    combination =  list(itertools.permutations(kerns, 2))
+    for comb in combination :
+        if kernel_tuple is not None :
+            COMB.append(kernel_tuple+("CP"+str(comb),))
+        else :
+            COMB.append(("CP"+str(comb),))
+    return COMB
 
-def search_and_add(kernel_tuple):
+def search_and_add(kernel_tuple,use_changepoint=False):
     ''' 
         Return all possible combinaison for one step
     inputs :
@@ -116,8 +140,21 @@ def search_and_add(kernel_tuple):
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
         COMB.append(kernel_tuple+comb)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple)
     return COMB
 
+def first_kernel(use_changepoint=False):
+    COMB =[]
+    kerns = tuple((KERNELS_OPS.keys()))
+    combination =  list(itertools.combinations(kerns, 1))
+    for comb in combination :
+        if comb[0][0] != "*" : 
+            COMB.append(comb)
+    if use_changepoint :
+        COMB = prepare_changepoint(COMB,kernel_tuple=None)
+    return COMB
+        
 
 def replacekernel(_kernel_list):
     COMB = []
@@ -125,12 +162,13 @@ def replacekernel(_kernel_list):
     replaced = list(_kernel_list)
     try :
         for element in _kernel_list :
-            for replace_object in KERNELS.keys() :
-                if element[1:] != replace_object :
-                    replaced[counter] = element[0] + replace_object
-                if replaced not in COMB : COMB.append(replaced)
-                replaced = list(_kernel_list)
-            counter +=1
+            if element[0] != "C" :
+                for replace_object in KERNELS.keys() :
+                    if element[1:] != replace_object :
+                        replaced[counter] = element[0] + replace_object
+                    if replaced not in COMB : COMB.append(replaced)
+                    replaced = list(_kernel_list)
+                counter +=1
         return COMB
     except Exception as e :
         print(e)
@@ -146,4 +184,5 @@ def gpy_kernels_from_names(_kernel_list):
         else :
             raise ValueError("Illicite operation")
     return kernel
+
 
