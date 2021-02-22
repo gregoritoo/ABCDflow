@@ -227,7 +227,6 @@ class CustomModel(object):
         print(colored('[DESCRIPTION]', 'blue'),summary)
 
     def decompose(self,kernel_list,X_train,Y_train,X_s):
-        print("All variables ",self._variables)
         list_params = self.split_params(kernel_list)
         splitted,pos = devellopement(kernel_list)
         params_dic = self._variables
