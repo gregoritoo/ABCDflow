@@ -13,6 +13,7 @@ import itertools
 from language import *
 from search import preparekernel,decomposekernel
 from utils import KERNELS_FUNCTIONS,GPY_KERNELS
+from termcolor import colored
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 PI = m.pi
@@ -24,7 +25,7 @@ class CustomModel(object):
     '''
         Custom model to do gaussian processes regression 
     '''
-    def __init__(self,params,existing=None,X_train=None):
+    def __init__(self,params,existing=None,X_train=None,use_noise=True):
         '''
             Initialize default class dic with parameters corresponding to kernels 
         inputs :
@@ -33,6 +34,7 @@ class CustomModel(object):
         outputs :
             None
         '''
+
         for attr in params.keys() :
             pars = params[attr]
             for var in pars :
@@ -72,10 +74,13 @@ class CustomModel(object):
                             dtype=_precision,
                             shape=(1,),
                             initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
-        self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
-                            dtype=_precision,
-                            shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+        if use_noise :
+            self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
+                                dtype=_precision,
+                                shape=(1,),
+                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+        else :
+            self.__dict__["noise"] = tf.Variable(0.,dtype=_precision)
 
     @property
     def initialisation_values(self):
@@ -169,10 +174,7 @@ class CustomModel(object):
         return  -ll - 0.5*k*tf.math.log(n)
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
-        try :
-            Y_train,X_train,X_s = Y_train,X_train,X_s
-        except Exception as e :
-            print(e)
+        Y_train,X_train,X_s = Y_train,X_train,X_s
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
         if kernel_name is not None and kernel_name[:2] != "CP": 
             plt.title("kernel :"+''.join(kernel_name)[1:])
@@ -193,10 +195,10 @@ class CustomModel(object):
         list_params = []
         pos = 0
         for element in kernel_list :
-            if element[1] == "P" and element[0] != "C": 
+            if element[1] == "P" and element[:2] != "CP": 
                 list_params.append(params[pos:pos+3])
                 pos+=3
-            elif element[:2]== "CP" :
+            elif element[:2] == "CP" :
                 chgs_p = remove_useless_term_changepoint(element)
                 for kernels in chgs_p :
                     if kernels[1] == "P" : 
@@ -206,6 +208,7 @@ class CustomModel(object):
                         list_params.append(params[pos:pos+2])
                         pos+=2
                 list_params.append(params[pos:pos+2])
+                pos+=2
             else : 
                 list_params.append(params[pos:pos+2])
                 pos+=2
@@ -221,9 +224,10 @@ class CustomModel(object):
             summary =  comment(summary,element,pos[loop_counter],params_dic,list_params)  + "\n"
             loop_counter += 1
         summary = summary + "\t It also has a noise of {:.1f} .".format(self._variables["noise"].numpy()[0])
-        print(summary)
+        print(colored('[DESCRIPTION]', 'blue'),summary)
 
     def decompose(self,kernel_list,X_train,Y_train,X_s):
+        print("All variables ",self._variables)
         list_params = self.split_params(kernel_list)
         splitted,pos = devellopement(kernel_list)
         params_dic = self._variables
@@ -231,16 +235,18 @@ class CustomModel(object):
         cov = 0
         for element in splitted :
             kernels = decomposekernel(element)
+            if len(kernels) < 1 : kernels = preparekernel(element)
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
-            print(merged,list_of_dic)
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
-            decomp_model = CustomModel(kernels,dictionary)
+            decomp_model = CustomModel(params=kernels,existing=dictionary,use_noise=False)
             mu,cov = decomp_model.predict(X_train,Y_train,X_s,element)
             plt.title("kernel :"+''.join(element)[1:])
             decomp_model.plot(mu,cov,X_train,Y_train,X_s,kernel_name=None)
             plt.show(block=True)
             plt.close()
+            loop_counter += 1
+            del decomp_model
 
     
 class GPyWrapper(object):

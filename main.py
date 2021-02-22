@@ -26,8 +26,8 @@ from search import *
 
 
 if __name__ =="__main__" :
-    Y = np.append(np.linspace(1,200,200),200+10*np.sin(np.linspace(1,200,200))).reshape(-1, 1)
-    #Y = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1,1)
+    #Y = np.append(np.linspace(1,200,200),200+10*np.sin(np.linspace(1,200,200))).reshape(-1, 1)
+    Y = np.array(pd.read_csv("./data/historical_tsi.csv")["x"][40:500]).reshape(-1,1)
     plt.plot(Y)
     plt.show()
     X_s = np.linspace(0,len(Y)+50,len(Y)+50).reshape(-1, 1)
@@ -40,7 +40,7 @@ if __name__ =="__main__" :
     plt.show()"""
     #X_s = np.linspace(-20,20,len(X)+40).reshape(-1, 1)
     t0 = time.time()
-    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=1,verbose=True,initialisation_restart=5,reduce_data=False,experimental_multiprocessing=False,GPY=False,use_changepoint=True) #straight parameters == True
+    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=2,verbose=True,initialisation_restart=10,reduce_data=False,experimental_multiprocessing=True,GPY=False,use_changepoint=True) #straight parameters == True
     print('time took: {} seconds'.format(time.time()-t0))
     model.describe(kernel)
     mu,cov = model.predict(X,Y,X_s,kernel)
@@ -48,6 +48,4 @@ if __name__ =="__main__" :
     #model.plot()
     plt.show()
     model.decompose(kernel,X,Y,X_s)
-    model.plot()
-    model.decompose(kernel,X,Y,X_s)
-    plt.show()
+

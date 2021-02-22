@@ -23,7 +23,7 @@ def devellopement(kernel_list):
             for p in range(len(splitted)) :
                 if len(splitted[p]) > 0   :
                     splitted[p].append(kernel_list[i])
-                    splitted_params[p].append(j)
+                    splitted_params[p].append(j) 
             j=j+1 
         elif  kernel_list[i][0]=="+"  :
             splitted.append([kernel_list[i]])
@@ -75,7 +75,6 @@ def comment(text,component,pos,params_dic,list_params):
             text = text + "modulated by a periodic function defined by a period of {:.1f}, a variance of {:.1f} and lengthscale of {:.1f} , ".format(float(params_dic[params[1]].numpy()[0]),float(params_dic[params[2]].numpy()[0]),float(params_dic[params[0]].numpy()[0]))
         if  re.search('\*SE', kern) is not None  :
             text = text + "whose shape varying smoothly with a lengthscale of {:.1f} , ".format(float(params_dic[params[0]].numpy()[0]))
-
     return text[:-2]+"."
     
 
@@ -107,3 +106,4 @@ def comment_gpy(text,component,pos,variables_names,variables):
 
 if __name__ == "__main__" :
     print(devellopement(["CP('SE', 'LIN')","+PER","*SE","+WN","*LIN","+PER"]))
+    print(devellopement(["CP(\'+LIN', '+LIN\')", "*SE"]))

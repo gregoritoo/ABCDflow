@@ -24,7 +24,7 @@ import time
 import scipy 
 from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel,gpy_kernels_from_names,first_kernel
 from utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
-
+from termcolor import colored
 
 PI = m.pi
 _precision = tf.float64
@@ -168,7 +168,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
     if not GPY :
         model=BEST_MODELS["model"]
         model.viewVar(BEST_MODELS["model_list"])
-        print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
+        print(colored('[STATE]', 'red'),"model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
     return BEST_MODELS["model"],BEST_MODELS["model_list"]
 
 
@@ -207,7 +207,7 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
     if not GPY :
         model=BEST_MODELS["model"]
         model.viewVar(kernel)
-        print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,kernel)))
+        print(colored('[STATE]', 'red'),"model BIC is {}".format(model.compute_BIC(X_train,Y_train,kernel)))
         mu,cov = model.predict(X_train,Y_train,X_s,kernel)
     if do_plot :
         model.plot(mu,cov,X_train,Y_train,X_s,kernel)
@@ -293,7 +293,7 @@ def multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by
     print("This is experimental, the speed may varie a lot !")
     try :
         model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoints)
+                                    verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
     except Exception as e :
         print(e)
     return model,kernels
@@ -307,7 +307,7 @@ def monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_
 
 @save_and_plot
 def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model):
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model,use_changepoint):
     
     model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
                                     verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
@@ -324,7 +324,6 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
     pool.close()
     pool.join()
     return outputs
-
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False,use_changepoint=False):
     """
@@ -354,18 +353,19 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     count,constant,old_model = 0,0,""
     train_length = (depth+1)*len(KERNELS) + len(KERNELS)
     COMB = first_kernel(use_changepoint)
-    print(COMB)
+    print(colored('[STATE]', 'red')," starting with ",COMB)
     for loop in range(depth) :
         TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
         loop += 1
         if loop > 1 :
-            COMB = search_and_add(tuple(BEST_MODELS["model_list"]),use_changepoint)
-            print("Next combinaison to try : {}".format(COMB))
+            #COMB = search_and_add(tuple(BEST_MODELS["model_list"]),use_changepoint)
+            COMB = search_and_add(tuple(BEST_MODELS["model_list"]),False)
+            print(colored('[STATE]', 'red')," Next combinaison to try : {}".format(COMB))
         iteration,j=0,0
         if parralelize_code :
             outputs = parralelize(X_train,Y_train,X_s,COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
             BEST_MODELS = update_best_model_after_parallelized_step(outputs,BEST_MODELS)
-            print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop))
+            print(colored('[INTERMEDIATE RESULTS] ', 'green'),'The best model is {} at layer {}'.format(BEST_MODELS["model_list"],loop))
             if old_model == BEST_MODELS['model_name'] :
                 constant += 1
             old_model = BEST_MODELS['model_name']
@@ -373,7 +373,7 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
                 return BEST_MODELS["model"],BEST_MODELS["model_list"]
             if loop > 2 :
                 new_COMB = replacekernel(BEST_MODELS["model_list"])   #swap step 
-                print("Trying to switch kernels : trying {} ".format(new_COMB))
+                print(colored('[STATE]', 'red')," Trying to switch kernels : trying {} ".format(new_COMB)) 
                 outputs = parralelize(X_train,Y_train,X_s,new_COMB,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER=OPTIMIZER,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode)
                 BEST_MODELS = update_best_model_after_parallelized_step(outputs,BEST_MODELS)
         else :
@@ -388,10 +388,10 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
                 print_trainning_steps(count,train_length,combi)
             if TEMP_MODELS["score"] > BEST_MODELS["score"] :
                 BEST_MODELS = TEMP_MODELS
-            print("The best model is {} at layer {}".format(BEST_MODELS["model_list"],loop))
+            print(colored('[INTERMEDIATE RESULTS] ', 'green'),'The best model is {} at layer {}'.format(BEST_MODELS["model_list"],loop))
             if loop > 2 and len(BEST_MODELS["model_list"]) > 2:
                 new_COMB = replacekernel(BEST_MODELS["model_list"])   #swap step 
-                print("Trying to switch kernels : trying {} ".format(new_COMB))
+                print(colored('[STATE]', 'red')," Trying to switch kernels : trying {} ".format(new_COMB))
                 j=0
                 while j <  len(new_COMB) :
                     try : combi = new_COMB[j]
@@ -402,13 +402,12 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
                     print_trainning_steps(count,train_length,combi)
                 if TEMP_MODELS["score"] > BEST_MODELS["score"] :
                     BEST_MODELS = TEMP_MODELS
-        print("The best model is {} after swap ".format(BEST_MODELS["model_list"]))
+        print(colored('[STATE]', 'red')," The best model is {} after swap ".format(BEST_MODELS["model_list"]))
     if not GPY  and verbose :
         model=BEST_MODELS["model"]
         model.viewVar(BEST_MODELS["model_list"])
-        print("model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
+        print(colored('[STATE]', 'red')," model BIC is {}".format(model.compute_BIC(X_train,Y_train,BEST_MODELS["model_list"])))
     return BEST_MODELS["model"],BEST_MODELS["model_list"]
-
 
 
 
@@ -452,16 +451,18 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
             if not GPY : 
                 while true_restart < initialisation_restart and failed < initialisation_restart * 2 :
                     try :
-                        model=CustomModel(kernels,init_values,X_train)
+                        model = CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
-                        if verbose :  print(BIC)
+                        if verbose :  print("[STATE] ",BIC)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
                         if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])] 
                         if math.isnan(BIC) == False or math.isinf(BIC) == False : 
-                            true_restart += 1     
+                            true_restart += 1   
+                        del model  
                     except Exception :
                         failed +=1  
+
             else :
                 k = gpy_kernels_from_names(kernel_list)
                 model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
@@ -470,7 +471,7 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                 BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=True)
                 if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],BIC]               
     except Exception as e:
-        print("error with kernel :",kernels_name)
+        print(colored('[ERROR]', 'red')," error with kernel :",kernels_name)
     if prune :
         return BEST_MODELS,TEMP_BEST_MODELS
     else :
@@ -503,6 +504,7 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
     true_restart=0
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     init_values = TEMP_BEST_MODELS["init_values"] 
+    del TEMP_BEST_MODELS
     try :
         if not unique : kernel_list = list(combi)
         else : kernel_list = list([combi])
@@ -515,11 +517,12 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
             if not GPY :
                 while true_restart < initialisation_restart and failed < 20:
                     try :
-                        model=CustomModel(kernels,init_values,X_train)
+                        model = CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
-                        true_restart += 1     
+                        true_restart += 1  
+                        del model    
                     except Exception :
                         failed += 1    
             else :
@@ -533,7 +536,7 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
                     print(e)
                     pass         
     except Exception as e:
-        print("error with kernel :",kernels_name)
+        print(colored('[ERROR]', 'red')," error with kernel :",kernels_name)
     else :
         return BEST_MODELS
 
