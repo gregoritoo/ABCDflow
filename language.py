@@ -11,6 +11,15 @@ def remove_useless_term_changepoint(CP):
           
 
 def devellopement(kernel_list):
+    '''
+        Devellop kernels as describe in https://github.com/duvenaud/phd-thesis 
+            ex :
+    inputs :
+        kernel_list = list, list containing the kernels of the model
+    outputs :
+        splitted list of list, list containing develloped kernels
+        splitted_params list of list, list containing develloped parameters associated to the kernels 
+    '''
     splitted = []
     splitted_params = []
     j = 0
@@ -42,6 +51,15 @@ def devellopement(kernel_list):
 
 
 def comment_changepoint(text,kern,params_dic):
+    '''
+        Text description for changepoints kernels 
+    inputs :
+        text = str, model description
+        kern = str, kernel names 
+        params_dic = dictionnary containing all the model parameters 
+    outputs :
+        text = str, model description
+    '''
     if re.search('\:DEC_SIG', kern) is not None :
         text = text + " which apply until  {:.1f}   ".format(float(params_dic["cp_x0"].numpy()[0]))
     elif re.search('\:INC_SIG', kern) is not None :
@@ -50,6 +68,17 @@ def comment_changepoint(text,kern,params_dic):
 
 
 def comment(text,component,pos,params_dic,list_params):
+    '''
+        Text description using regex to extract kernels'names
+    inputs :
+        text = str, model description
+        component = list, list of kernels 
+        pos = develloped positions to extract parameters that correspond to the list of kernels 
+        params_dic = dict, dictionnary containing all the model parameters 
+        list_params = list, list with the name of the parameters 
+    outputs :
+        text = str, model description
+    '''
     list_of_dic = [list_params[position] for position in pos]
     for j in range(len(component)) :
         kern = component[j]

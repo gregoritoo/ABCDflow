@@ -10,8 +10,11 @@ import math as m
 import seaborn as sn
 import GPy
 import sys 
-from Regressors import * 
-from utils import train_step
+from Regressor import * 
+from Regressor_GPy import * 
+from kernels_utils import *
+from training_utils import *
+from plotting_utils import *
 import pandas as pd 
 from itertools import chain
 import itertools
@@ -23,18 +26,16 @@ import functools
 import time
 import scipy 
 from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel,gpy_kernels_from_names,first_kernel
-from utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
+from kernels_utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
 from termcolor import colored
 
 PI = m.pi
 _precision = tf.float64
-config = tf.compat.v1.ConfigProto(device_count = {'GPU': 0})
+config = tf.compat.v1.ConfigProto(device_count = {'GPU': 0,'CPU':4})
 config.gpu_options.allow_growth = True
-config.inter_op_parallelism_threads = 44
-config.intra_op_parallelism_threads = 44
+config.inter_op_parallelism_threads = 3
+config.intra_op_parallelism_threads = 3
 session = tf.compat.v1.Session(config=config)
-
-lr_list = np.linspace(0.001,1,101)
 borne = -1*10e40
 
 
@@ -275,8 +276,11 @@ def save_and_plot(func):
         do_plot,save_model=args[-2],args[-1]
         X_train,Y_train,X_s = args[0],args[1],args[2]
         if do_plot :
-            mu,cov = model.predict(X_train,Y_train,X_s,kernels)
-            model.plot(mu,cov,X_train,Y_train,X_s,kernels)
+            try :
+                mu,cov = model.predict(X_train,Y_train,X_s,kernels)
+                model.plot(mu,cov,X_train,Y_train,X_s,kernels)
+            except :
+                model.plot()
             plt.show()
         if save_model :
             with open(name, 'wb') as f :
@@ -313,7 +317,6 @@ def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop
                                     verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
     return model,kernels
 
-
 def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode):
     ''' 
         Use class multiprocessing.dummies to multithread one step train , keep all the score of every models in order to compared them lately 
@@ -324,6 +327,8 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
     pool.close()
     pool.join()
     return outputs
+
+
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False,use_changepoint=False):
     """
@@ -434,8 +439,6 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
     outputs:
         BEST_MODELS : dict, dictionnary containing the best model and it score
     '''
-    """X_full = X_train
-    Y_full = Y_train"""
     j=0
     lr = 0.1
     init_values = BEST_MODELS["init_values"] 

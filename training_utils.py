@@ -1,9 +1,9 @@
 import numpy as np 
 import tensorflow as tf 
 from pprint import pprint
-import tensorflow_probability as tfp
 import os 
 import logging
+from kernels_utils import *
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.get_logger().setLevel('INFO')
@@ -26,130 +26,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.keras.backend.set_floatx('float64')
 
 
-CB91_Blue = '#2CBDFE'
-CB91_Green = '#47DBCD'
-CB91_Pink = '#F3A0F2'
-CB91_Purple = '#9D2EC5'
-CB91_Violet = '#661D98'
-CB91_Amber = '#F5B14C'
 
 PI = m.pi
-OPTIMIZER = tf.optimizers.Adamax(learning_rate=0.06)
 _jitter = 1e-7
 _precision = tf.float64
 
-KERNELS_LENGTH = {
-    "LIN" : 2,
-    "SE" : 2,
-    "PER" :3,
-    "RQ" : 3,
-    "CONST" : 1,
-    "WN" : 1,
-}
 
 
-
-KERNELS_FUNCTIONS = {
-    "LIN" : kernels.LIN,
-    "PER" : kernels.PER,
-    "SE" : kernels.SE,
-    "RQ" : kernels.RQ,
-    "CONST" : kernels.CONST,
-    "WN" :kernels.WN,
-
-}
-KERNELS_LENGTH = {
-    "LIN" : 2,
-    "SE" : 2,
-    "PER" :3,
-    #"CONST" : 1,
-    #"WN" : 1,
-    #"RQ" : 3,
-}
-
-KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    #"CONST" : {"parameters":["const_sigma"]},
-    "SE" : {"parameters_se":["squaredexp_l","squaredexp_sigma"]},
-    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
-    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
-}
-
-
-KERNELS_OPS = {
-    "*LIN" : "mul",
-    "*SE" : "mul",
-    "*PER" :"mul",
-    "+LIN" : "add",
-    "+SE" : "add",
-    "+PER" : "add",
-    #"+CONST" :"add",
-    #"*CONST" : "mul",
-    #"+WN" :"add",
-    #"*WN" : "mul",
-    #"+RQ" : "add",
-    #"*RQ" : "mul",
-}
-
-GPY_KERNELS = {
-    "LIN" : GPy.kern.Linear(1),
-    "SE" : GPy.kern.sde_Exponential(1),
-    "PER" :GPy.kern.StdPeriodic(1),
-    "RQ" : GPy.kern.RatQuad(1),
-}
-
-def make_df(X,stdp,stdi):
-    X = np.array(X).reshape(-1)
-    Y = np.array(np.arange(len(X))).reshape(-1)
-    stdp = np.array(stdp).reshape(-1)
-    stdi = np.array(stdi).reshape(-1)
-    df = pd.DataFrame({"x":X, "y":Y,"stdp":stdp,"stdi":stdi},index=Y)
-    return df 
-    
-def plot_gs_pretty(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
-    plt.style.use('seaborn')
-    try :
-        true_data,X_train,X_s = true_data.numpy(),X_train.numpy(),X_s.numpy()
-        mean,stdp,stdi =  mean.numpy(),stdp.numpy(), stdi.numpy()
-    except Exception as e:
-        pass
-    true_data,X_train,X_s =  true_data.reshape(-1),X_train.reshape(-1),X_s.reshape(-1)
-    mean,stdp,stdi = mean.reshape(-1),stdp.reshape(-1),stdi.reshape(-1).reshape(-1) 
-    plt.style.use('seaborn')
-    plt.plot(X_s,mean,color="blue",label="Predicted values")
-    plt.fill_between(X_s,stdp,stdi, facecolor=CB91_Blue, alpha=0.2,label="Conf I")
-    plt.plot(X_train,true_data,color=CB91_Amber,label="True data",marker="x")
-    plt.legend()    
-    plt.show()
-
-def plot_gs(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
-    plt.figure(figsize=(32,16), dpi=100)
-    print(X_s)
-    plt.style.use('seaborn')
-    plt.plot(X_s,mean,color="green",label="Predicted values")
-    plt.fill_between(X_s.reshape(-1,),stdp,stdi, facecolor=CB91_Blue, alpha=0.2,label="Conf I")
-    plt.plot(X_train,true_data,color=CB91_Amber,label="True data")
-    plt.legend()
-    
-
-def get_values(mu_s,cov_s,nb_samples=100):
-    '''
-        Get prediction using predicted mean and covariance function
-    inputs
-        mu_s array, predicted mean
-        cov_s array, predicted covariance
-        nb_samples int, number of sample to draw to estimate prediction
-    outputs 
-        mean numpy array, predicted mean
-        stdp numpy array, upper bound of 99% CI
-        stdi numpy array, lower bound of 99% CI
-    '''
-    samples = np.random.multivariate_normal(mu_s,cov_s,nb_samples)
-    stdp = [np.mean(samples[:,i])+1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
-    stdi = [np.mean(samples[:,i])-1.96*np.std(samples[:,i]) for i in range(samples.shape[1])]
-    mean = [np.mean(samples[:,i])for i in range(samples.shape[1])]
-    return mean,stdp,stdi
 
 def print_trainning_steps(count,train_length,combinaison_element):
     '''
@@ -175,6 +58,7 @@ def update_best_model_after_parallelized_step(outputs_threadpool,BEST_MODELS):
         else :
             if element["score"] > BEST_MODELS["score"] :
                 BEST_MODELS = element
+    del outputs_threadpool
     return BEST_MODELS
 
 def compute_posterior(y,cov,cov_s,cov_ss):

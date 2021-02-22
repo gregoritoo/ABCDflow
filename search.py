@@ -3,7 +3,7 @@ import numpy as np
 import os
 import sys 
 import pandas as pd 
-from utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
+from kernels_utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
 import itertools 
 borne = -1*10e40
 
