@@ -195,13 +195,11 @@ def whitenning_datas(X):
 
 def function_factory(model, loss_f, X, Y,params,kernel):
     """A factory to create a function required by tfp.optimizer.lbfgs_minimize.
-
     Args:
         model [in]: an instance of `tf.keras.Model` or its subclasses.
         loss [in]: a function with signature loss_value = loss(pred_y, true_y).
         train_x [in]: the input part of training data.
         train_y [in]: the output part of training data.
-
     Returns:
         A function that has a signature of:
             loss_value, gradients = f(model_parameters).
@@ -226,7 +224,6 @@ def function_factory(model, loss_f, X, Y,params,kernel):
     part = tf.constant(part)
     def assign_new_model_parameters(params_1d):
         """A function updating the model's parameters with a 1D tf.Tensor.
-
         Args:
             params_1d [in]: a 1D tf.Tensor representing the model's trainable parameters.
         """
@@ -276,4 +273,3 @@ def function_factory(model, loss_f, X, Y,params,kernel):
     f.history = []
 
     return f
-

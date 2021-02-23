@@ -30,7 +30,7 @@ _jitter = 1e-7
 _precision = tf.float64
 
 KERNELS_LENGTH = {
-    "LIN" : 2,
+    "LIN" : 1,
     "SE" : 2,
     "PER" :3,
     "RQ" : 3,
@@ -50,17 +50,17 @@ KERNELS_FUNCTIONS = {
 
 }
 KERNELS_LENGTH = {
-    "LIN" : 2,
+    "LIN" : 1,
     "SE" : 2,
     "PER" :3,
-    #"CONST" : 1,
+    "CONST" : 1,
     #"WN" : 1,
     #"RQ" : 3,
 }
 
 KERNELS = {
-    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
-    #"CONST" : {"parameters":["const_sigma"]},
+    "LIN" : {"parameters_lin":["lin_sigmav"]},
+    "CONST" : {"parameters":["const_sigma"]},
     "SE" : {"parameters_se":["squaredexp_l","squaredexp_sigma"]},
     "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
     #"WN" : {"paramters_Wn":["white_noise_sigma"]},
@@ -75,8 +75,8 @@ KERNELS_OPS = {
     "+LIN" : "add",
     "+SE" : "add",
     "+PER" : "add",
-    #"+CONST" :"add",
-    #"*CONST" : "mul",
+    "+CONST" :"add",
+    "*CONST" : "mul",
     #"+WN" :"add",
     #"*WN" : "mul",
     #"+RQ" : "add",

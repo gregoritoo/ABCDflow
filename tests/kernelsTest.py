@@ -12,7 +12,8 @@ class KernelTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(KernelTest, self).__init__(*args, **kwargs)
         self.X = tf.Variable(np.linspace(0,100,101).reshape(-1,1),dtype=tf.float64)
-        self._tolerance = 1e-3
+        self._tolerance = 1e-1
+
 
     def test_periodicKernel(self):
         lengthscale = 100*np.random.rand(1)

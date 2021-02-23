@@ -13,16 +13,32 @@ _precision = tf.float64
 
 @tf.function
 def LIN(x,y,params):
+    '''
+        Linear kernel : LIN(x,x') = sigma²*(x-c)*(x'-c)
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    c,sigmav = params[0],params[1]
-    x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x)))
-    y1 = tf.math.subtract(y,c*tf.ones_like(y))
+    sigmav = params[0]
+    x1 = tf.transpose(tf.math.subtract(x,tf.ones_like(x)))
+    y1 = tf.math.subtract(y,tf.ones_like(y))
     y2 = tf.transpose(tf.tile(y1, tf.constant([1,x.shape[0]])))
     x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
-    return sigmav*tf.math.multiply(y2,x2) 
+    return tf.math.square(sigmav)*tf.math.multiply(y2,x2) 
 
 @tf.function
 def CONST(x,y,sigma):
+    '''
+        Constant kernel : LIN(x,x') = sigma
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
     multiply_x = tf.constant([y.shape[0],1])
@@ -31,6 +47,14 @@ def CONST(x,y,sigma):
 
 @tf.function
 def WN(x,y,sigma):
+    '''
+        White noise kernel : WN(x,x') = sigma if x=x'
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
     x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
@@ -40,6 +64,14 @@ def WN(x,y,sigma):
 
 @tf.function
 def PER(x,y1,params):
+    '''
+        Periodic kernel : PER(x,x') = sigma*exp(-0.5/l²*sin(pi/p*abs(x-x')²))
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     l,p,sigma = params[0],params[1],params[2]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
@@ -54,6 +86,14 @@ def PER(x,y1,params):
 
 @tf.function
 def SE(x,y1,params):
+    '''
+        Square exponential (RBF) kernel : SE(x,x') = sigma * exp(-0.5/l²*(x-x')²)
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     l,sigma = params[0],params[1]
     assert x.shape[1] == y1.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
@@ -68,6 +108,14 @@ def SE(x,y1,params):
 
 @tf.function
 def RQ(x,y,params):
+    '''
+        Rational quadratic kernel : RQ(x,x') = σ(1+(x−x′)22αℓ2)^−α
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     l,sigma,alpha = params[0],params[1],params[2]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
@@ -98,6 +146,14 @@ def dec_sigmoid(y,s,cp):
 
 
 def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
+    '''
+        Changepoint kernel : LIN(x,x') = sigma²*x*x'
+    inputs :
+        x : tensor, X_train
+        y : tensor, Y_train
+    outputs :
+        covariance tensor
+    '''
     cp,s  = params[1],params[0]
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
     x1 = tf.transpose(x)
@@ -124,4 +180,3 @@ def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
     left = tf.math.multiply(tf.math.multiply(neg_sig_y,neg_sig_x),left_kern(x,y,left_params))
     rigth = tf.math.multiply(tf.math.multiply(sig_y,sig_x),rigth_kern(x,y,rigth_params))
     return tf.math.add(left,rigth)
-

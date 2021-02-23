@@ -40,6 +40,19 @@ borne = -1*10e40
 
 
 
+def define_boundaries(model,X_train):
+    bnds=[]
+    for param in model._opti_variables_name :
+        if param == "cp_x0" :
+            bnds.append([5,len(X_train)])
+        elif param == "cp_s" :
+            bnds.append([0.99,1])
+        elif param == "periodic_p" or param == "periodic_l" or param == "squaredexp_l"  :
+            bnds.append([1e-8,len(X_train)])
+        else :
+            bnds.append([1e-8,None])
+    return bnds 
+
 
 
 def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbose=True,mode="lfbgs"):
@@ -95,12 +108,8 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
             func = function_factory(model, log_cholesky_l_test, X_train, Y_train,model._opti_variables,kernels_name)
             init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
             # train the model with L-BFGS-B solver
-            bnds = list([(1e-2, None) for _ in range(len(model.variables)-3)])
-            bnds.append([0.99,1])
-            bnds.append([5,len(X_train)])
-            bnds.append([1e-8,None])  # specific boundaries for the noise parameter
+            bnds = define_boundaries(model,X_train)
             results = scipy.optimize.minimize(fun=func, x0=init_params,jac=True, method='L-BFGS-B',bounds=tuple(bnds),options={"maxiter":nb_iter})
-            #print(results)
             best_model = model
         except Exception as e:
             print(e)
@@ -457,13 +466,15 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                         model = CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
+                        print(BIC)
                         if verbose :  print("[STATE] ",BIC)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
                         if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])] 
                         if math.isnan(BIC) == False or math.isinf(BIC) == False : 
                             true_restart += 1   
                         del model  
-                    except Exception :
+                    except Exception as e:
+                        print(e)
                         failed +=1  
 
             else :
