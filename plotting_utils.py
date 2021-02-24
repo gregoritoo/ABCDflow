@@ -48,7 +48,7 @@ def make_df(X,stdp,stdi):
     return df 
     
 def plot_gs_pretty(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-dark-palette')
     try :
         true_data,X_train,X_s = true_data.numpy(),X_train.numpy(),X_s.numpy()
         mean,stdp,stdi =  mean.numpy(),stdp.numpy(), stdi.numpy()
@@ -56,10 +56,10 @@ def plot_gs_pretty(true_data,mean,X_train,X_s,stdp,stdi,color="blue"):
         pass
     true_data,X_train,X_s =  true_data.reshape(-1),X_train.reshape(-1),X_s.reshape(-1)
     mean,stdp,stdi = mean.reshape(-1),stdp.reshape(-1),stdi.reshape(-1).reshape(-1) 
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-dark-palette')
     plt.plot(X_s,mean,color="blue",label="Predicted values")
     plt.fill_between(X_s,stdp,stdi, facecolor=CB91_Blue, alpha=0.2,label="Conf I")
-    plt.plot(X_train,true_data,color=CB91_Amber,label="True data",marker="x")
+    plt.plot(X_train,true_data,color="black",label="True data",marker="x")
     plt.legend()    
     plt.show()
 

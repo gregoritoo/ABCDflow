@@ -225,8 +225,6 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
 
 
 
-
-
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
                         verbose=False,nb_by_step=None,loop_size=10,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs",use_changepoint=False):
     '''
@@ -326,17 +324,25 @@ def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop
                                     verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
     return model,kernels
 
+
+def generator_params(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode) :
+    for comb in combi :
+        yield [X_train,Y_train,X_s,comb,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,mode,False,False,initialisation_restart,GPY]
+
 def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode):
     ''' 
         Use class multiprocessing.dummies to multithread one step train , keep all the score of every models in order to compared them lately 
     '''
-    params = [[X_train,Y_train,X_s,comb,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,mode,False,False,initialisation_restart,GPY] for comb in combi]
+    params = generator_params(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode)
+
+    print("params","==============================",sys.getsizeof(params))
     pool = ThreadPool(3)
-    outputs = pool.starmap(search_step_parrallele,params)
+    for parameter in params :
+        outputs = pool.starmap(search_step_parrallele,params)
     pool.close()
     pool.join()
+    del pool 
     return outputs
-
 
 
 def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False,use_changepoint=False):

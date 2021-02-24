@@ -14,13 +14,12 @@ import kernels as kernels
 import itertools
 from language import *
 from search import preparekernel,decomposekernel
-from kernels_utils import KERNELS_FUNCTIONS,GPY_KERNELS
+from kernels_utils import KERNELS_FUNCTIONS,GPY_KERNELS,KERNELS_LENGTH
 from termcolor import colored
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 PI = m.pi
 _precision = tf.float64
-
 
 
 class CustomModel(object):
@@ -130,6 +129,7 @@ class CustomModel(object):
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
         mu,cov = self._compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
+
 
     def _get_cov(self,X,Y,kernel,params):
         params_name = list(params.keys())
