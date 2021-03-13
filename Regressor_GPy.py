@@ -14,7 +14,7 @@ import kernels as kernels
 import itertools
 from language import *
 from search import preparekernel,decomposekernel
-from kernels_utils import KERNELS_FUNCTIONS,GPY_KERNELS
+from kernels_utils import KERNELS_FUNCTIONS
 from termcolor import colored
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -93,7 +93,7 @@ class GPyWrapper(object):
             model.plot()
             loop_counter += 1
 
-    def _gpy_kernels_from_names(self,_kernel_list,params):
+"""    def _gpy_kernels_from_names(self,_kernel_list,params):
         try :
             kernel = GPy.kern.Linear(1,params[0][0])
         except Exception as e:
@@ -106,4 +106,4 @@ class GPyWrapper(object):
                 kernel = kernel * GPY_KERNELS[_kernel_list[j][1 :]](1,params[j])
             else :
                 raise ValueError("Illicite operation")
-        return kernel
+        return kernel"""

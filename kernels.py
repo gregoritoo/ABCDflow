@@ -22,9 +22,9 @@ def LIN(x,y,params):
         covariance tensor
     '''
     assert x.shape[1] == y.shape[1] ,"X and Y must have the same dimension"
-    sigmav = params[0]
-    x1 = tf.transpose(tf.math.subtract(x,tf.ones_like(x)))
-    y1 = tf.math.subtract(y,tf.ones_like(y))
+    c,sigmav = params[0],params[1]
+    x1 = tf.transpose(tf.math.subtract(x,c*tf.ones_like(x,dtype=_precision)))
+    y1 = tf.math.subtract(y,c*tf.ones_like(y,dtype=_precision))
     y2 = tf.transpose(tf.tile(y1, tf.constant([1,x.shape[0]])))
     x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
     return tf.math.square(sigmav)*tf.math.multiply(y2,x2) 
@@ -32,7 +32,7 @@ def LIN(x,y,params):
 @tf.function
 def CONST(x,y,sigma):
     '''
-        Constant kernel : LIN(x,x') = sigma
+        Constant kernel : CONST(x,x') = sigma
     inputs :
         x : tensor, X_train
         y : tensor, Y_train
@@ -80,7 +80,7 @@ def PER(x,y1,params):
     multiply_x = tf.constant([y1.shape[0],1])
     x2 = tf.transpose(tf.tile(x1, multiply_x))
     const_1 = tf.cast(PI/p,dtype=_precision)
-    const_2 = tf.cast(0.5*(-1/tf.math.square(l)),dtype=_precision)
+    const_2 = tf.cast(2*(-1/tf.math.square(l)),dtype=_precision)
     w = sigma * tf.math.exp(const_2*tf.math.square(tf.math.sin(const_1*tf.math.abs(tf.math.subtract(x2,y2)))))
     return w
 
@@ -109,7 +109,7 @@ def SE(x,y1,params):
 @tf.function
 def RQ(x,y,params):
     '''
-        Rational quadratic kernel : RQ(x,x') = σ(1+(x−x′)22αℓ2)^−α
+        Rational quadratic kernel : RQ(x,x') = σ(1+(x−x′)^2*αℓ2)^−α
     inputs :
         x : tensor, X_train
         y : tensor, Y_train
@@ -132,7 +132,7 @@ def RQ(x,y,params):
 
 
 """
-    sigmoid and dec_sigmoid directly compute in CP (same graph => gradient)
+    sigmoid and dec_sigmoid 
 """
 def sigmoid(x,s,cp):
     temp = cp*tf.ones_like(x,dtype=tf.float64)
@@ -143,11 +143,25 @@ def dec_sigmoid(y,s,cp):
     temp = cp*tf.ones_like(y,dtype=tf.float64)
     return tf.math.subtract(one,tf.math.divide(tf.ones_like(y,dtype=tf.float64),tf.math.add(tf.ones_like(y,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y,temp)))))
 
+def tanh(x,s,cp):
+    temp = cp*tf.ones_like(x,dtype=tf.float64)
+    return 0.5*tf.math.add(tf.ones_like(x,dtype=tf.float64),1/s*tf.math.subtract(temp,x))
+
+def dec_tanh(x,s,cp):
+    one = tf.ones_like(x,dtype=tf.float64)
+    temp = cp*tf.ones_like(x,dtype=tf.float64)
+    return tf.math.subtract(one,0.5*tf.math.add(tf.ones_like(x,dtype=tf.float64),1/s*tf.math.subtract(temp,x)))
+
+
+
+
+
+
 
 
 def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
     '''
-        Changepoint kernel : LIN(x,x') = sigma²*x*x'
+        Changepoint kernel 
     inputs :
         x : tensor, X_train
         y : tensor, Y_train
@@ -160,22 +174,9 @@ def CP(x,y,params,left_kern,rigth_kern,left_params,rigth_params):
     x2 = tf.transpose(tf.tile(x1, tf.constant([y.shape[0],1])))
     y2 = tf.transpose(tf.tile(y, tf.constant([1,x.shape[0]])))
 
-    #Pos sigmoid 
-    #x
-    temp_x = cp*tf.ones_like(x2,dtype=tf.float64)
-    sig_x = tf.math.divide(tf.ones_like(x2,dtype=tf.float64),tf.math.add(tf.ones_like(x2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(x2,temp_x))))
-    #y 
-    temp_y = cp*tf.ones_like(y2,dtype=tf.float64)
-    sig_y = tf.math.divide(tf.ones_like(y2,dtype=tf.float64),tf.math.add(tf.ones_like(y2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y2,temp_y))))
-    #Neg sigmoid 
-    #x
-    one_x = tf.ones_like(x2,dtype=tf.float64)
-    temp_x = cp*tf.ones_like(x2,dtype=tf.float64)
-    neg_sig_x = tf.math.subtract(one_x,tf.math.divide(tf.ones_like(x2,dtype=tf.float64),tf.math.add(tf.ones_like(x2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(x2,temp_x)))))
-    #y
-    one_y = tf.ones_like(y2,dtype=tf.float64)
-    temp_y = cp*tf.ones_like(y2,dtype=tf.float64)
-    neg_sig_y = tf.math.subtract(one_y,tf.math.divide(tf.ones_like(y2,dtype=tf.float64),tf.math.add(tf.ones_like(y2,dtype=tf.float64),tf.math.exp(-s*tf.math.subtract(y2,temp_y)))))
+
+    sig_y,sig_x = sigmoid(x2,s,cp),sigmoid(y2,s,cp)
+    neg_sig_y,neg_sig_x = dec_sigmoid(y2,s,cp),dec_sigmoid(x2,s,cp)
 
     left = tf.math.multiply(tf.math.multiply(neg_sig_y,neg_sig_x),left_kern(x,y,left_params))
     rigth = tf.math.multiply(tf.math.multiply(sig_y,sig_x),rigth_kern(x,y,rigth_params))

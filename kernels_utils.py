@@ -19,7 +19,7 @@ import functools
 import os
 import time
 import seaborn as sn
-
+import gpflow
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -29,13 +29,40 @@ PI = m.pi
 _jitter = 1e-7
 _precision = tf.float64
 
+
+
+KERNELS = {
+    "LIN" : {"parameters_lin":["lin_c","lin_sigmav"]},
+    "CONST" : {"parameters":["const_sigma"]},
+    "SE" : {"parameters_se":["squaredexp_l","squaredexp_sigma"]},
+    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
+    "WN" : {"paramters_Wn":["white_noise_sigma"]},
+    "RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
+}
+
+
+KERNELS_OPS = {
+    "*LIN" : "mul",
+    "*SE" : "mul",
+    "*PER" :"mul",
+    "+LIN" : "add",
+    "+SE" : "add",
+    "+PER" : "add",
+    "+CONST" :"add",
+    "*CONST" : "mul",
+    "+WN" :"add",
+    "*WN" : "mul",
+    "+RQ" : "add",
+    "*RQ" : "mul",
+}
+
 KERNELS_LENGTH = {
-    "LIN" : 1,
-    "SE" : 2,
-    "PER" :3,
-    "RQ" : 3,
-    "CONST" : 1,
-    "WN" : 1,
+    "LIN" : len(KERNELS["LIN"]["parameters_lin"]),
+    "SE" : len(KERNELS["SE"]["parameters_se"]),
+    "PER" :len(KERNELS["PER"]["parameters_per"]),
+    "RQ" : len(KERNELS["RQ"]["parameters_rq"]),
+    "CONST" : len(KERNELS["CONST"]["parameters"]),
+    "WN" : len(KERNELS["WN"]["paramters_Wn"]),
 }
 
 
@@ -49,39 +76,7 @@ KERNELS_FUNCTIONS = {
     "WN" :kernels.WN,
 
 }
-KERNELS_LENGTH = {
-    "LIN" : 1,
-    "SE" : 2,
-    "PER" :3,
-    "CONST" : 1,
-    #"WN" : 1,
-    #"RQ" : 3,
-}
 
-KERNELS = {
-    "LIN" : {"parameters_lin":["lin_sigmav"]},
-    "CONST" : {"parameters":["const_sigma"]},
-    "SE" : {"parameters_se":["squaredexp_l","squaredexp_sigma"]},
-    "PER" : {"parameters_per":["periodic_l","periodic_p","periodic_sigma"]},
-    #"WN" : {"paramters_Wn":["white_noise_sigma"]},
-    #"RQ" : {"parameters_rq":["rq_l","rq_sigma","rq_alpha"]},
-}
-
-
-KERNELS_OPS = {
-    "*LIN" : "mul",
-    "*SE" : "mul",
-    "*PER" :"mul",
-    "+LIN" : "add",
-    "+SE" : "add",
-    "+PER" : "add",
-    "+CONST" :"add",
-    "*CONST" : "mul",
-    #"+WN" :"add",
-    #"*WN" : "mul",
-    #"+RQ" : "add",
-    #"*RQ" : "mul",
-}
 
 GPY_KERNELS = {
     "LIN" : GPy.kern.Linear(1),
@@ -89,4 +84,7 @@ GPY_KERNELS = {
     "PER" :GPy.kern.StdPeriodic(1),
     "RQ" : GPy.kern.RatQuad(1),
 }
+
+
+
 

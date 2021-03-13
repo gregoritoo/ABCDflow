@@ -14,7 +14,7 @@ import kernels as kernels
 import itertools
 from language import *
 from search import preparekernel,decomposekernel
-from kernels_utils import KERNELS_FUNCTIONS,GPY_KERNELS,KERNELS_LENGTH
+from kernels_utils import KERNELS_FUNCTIONS,KERNELS_LENGTH
 from termcolor import colored
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -54,7 +54,7 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                                 dtype=_precision,
                                 shape=(1,),
-                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
                     
                 else :
                     if var in existing.keys() :
@@ -69,17 +69,17 @@ class CustomModel(object):
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=5., maxval=float(len(X_train))))
+                            initializer=tf.random_uniform_initializer(minval=10., maxval=float(len(X_train))))
                     else :
                         self.__dict__[var] = tf.compat.v1.get_variable(var,
                             dtype=_precision,
                             shape=(1,),
-                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+                            initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
         if use_noise :
             self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
                                 dtype=_precision,
                                 shape=(1,),
-                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=100.))
+                                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
         else :
             self.__dict__["noise"] = tf.Variable(0.,dtype=_precision)
 
@@ -103,7 +103,7 @@ class CustomModel(object):
         return vars(self).keys()
     
 
-    @tf.function
+    #@tf.function
     def __call__(self,X_train,Y_train,kernels_name):
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
@@ -179,9 +179,9 @@ class CustomModel(object):
         Y_train,X_train,X_s = Y_train,X_train,X_s
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
         if kernel_name is not None and kernel_name[:2] != "CP": 
-            plt.title("kernel :"+''.join(kernel_name)[1:])
+            plt.title("kernel : "+''.join(kernel_name)[1:])
         elif kernel_name is not None : 
-            plt.title("kernel :"+''.join(kernel_name)[:])
+            plt.title("kernel : C"+''.join(kernel_name)[:])
         plot_gs_pretty(Y_train,np.array(mean),X_train,X_s,np.array(stdp),np.array(stdi))
         plt.show()
 
@@ -240,7 +240,8 @@ class CustomModel(object):
             list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
-            decomp_model = CustomModel(params=kernels,existing=dictionary,use_noise=False)
+            dictionary.update({"noise" : self.__dict__["noise"]})
+            decomp_model = CustomModel(params=kernels,existing=dictionary)
             mu,cov = decomp_model.predict(X_train,Y_train,X_s,element)
             plt.title("kernel :"+''.join(element)[1:])
             decomp_model.plot(mu,cov,X_train,Y_train,X_s,kernel_name=None)

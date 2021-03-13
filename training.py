@@ -28,6 +28,7 @@ import scipy
 from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel,gpy_kernels_from_names,first_kernel
 from kernels_utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
 from termcolor import colored
+from gpflow.utilities import print_summary
 
 PI = m.pi
 _precision = tf.float64
@@ -120,7 +121,7 @@ def train(model,nb_iter,nb_restart,X_train,Y_train,kernels_name,OPTIMIZER,verbos
 
 
 
-def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode="lfbgs",use_changepoint=False):
+def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode="lfbgs",use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
     '''
         Compare models for each step of the training, and keep the best model
     inputs :
@@ -140,7 +141,7 @@ def analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,
         BEST_MODELS["model_list"] : list, array of best model
     '''
     if i == -1 :
-        COMB = search("",[],True,depth,use_changepoint)
+        COMB = search("",[],True,depth,use_changepoint,base_kernels)
     else :
         name = "search/model_list_"+str(i)
         with open(name, 'rb') as f :
@@ -226,7 +227,7 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
 
 
 def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,save_model=False,prune=False,OPTIMIZER= tf.optimizers.Adam(0.001), \
-                        verbose=False,nb_by_step=None,loop_size=10,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs",use_changepoint=False):
+                        verbose=False,nb_by_step=None,loop_size=10,experimental_multiprocessing=False,reduce_data=False,straigth=True,depth=5,initialisation_restart=5,GPY=False,mode="lfbgs",use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
     '''
         Main function wich launch the search in the model space 
     inputs :
@@ -260,17 +261,17 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             Y_train = whitenning_datas(Y_train)
             X_s = whitenning_datas(X_s)
     i=-1 
-    if experimental_multiprocessing and not GPY:
+    if experimental_multiprocessing :
         model,kernels = multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model,use_changepoint)
+                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model,use_changepoint,base_kernels)
         return model,kernels
     if straigth :
         model,kernels = monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint)
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
         return model,kernels
     if not experimental_multiprocessing :
         model,kernels = griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint)
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
         return model,name_kernel
    
 def save_and_plot(func):
@@ -280,7 +281,7 @@ def save_and_plot(func):
     def wrapper_func(*args,**kwargs):
         model,kernels = func(*args,**kwargs)
         name = './best_models/best_model'
-        do_plot,save_model=args[-2],args[-1]
+        do_plot,save_model=args[-3],args[-2]
         X_train,Y_train,X_s = args[0],args[1],args[2]
         if do_plot :
             try :
@@ -300,28 +301,28 @@ def save_and_plot(func):
 
 @save_and_plot
 def multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,parralelize_code,do_plot,save_model,use_changepoint):
+                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,parralelize_code,do_plot,save_model,use_changepoint,base_kernels):
     print("This is experimental, the speed may varie a lot !")
     try :
         model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
+                                    verbose,OPTIMIZER,depth,initialisation_restart=initialisation_restart,GPY=GPY,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint,base_kernels=base_kernels)
     except Exception as e :
         print(e)
     return model,kernels
 
 @save_and_plot
 def monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model,use_changepoint):
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model,use_changepoint,base_kernels):
     model,kernels = straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                                verbose,OPTIMIZER,depth,initialisation_restart,GPY=GPY,mode=mode,use_changepoint=use_changepoint)
+                                                verbose,OPTIMIZER,depth,initialisation_restart,GPY=GPY,mode=mode,use_changepoint=use_changepoint,base_kernels=base_kernels)
     return model,kernels
 
 @save_and_plot
 def griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model,use_changepoint):
+                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,parralelize_code,do_plot,save_model,use_changepoint,base_kernels):
     
     model,kernels = analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint)
+                                    verbose,OPTIMIZER,initialisation_restart,GPY=GPY,depth=depth,mode=mode,parralelize_code=parralelize_code,use_changepoint=use_changepoint,base_kernels=base_kernels)
     return model,kernels
 
 
@@ -334,8 +335,6 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
         Use class multiprocessing.dummies to multithread one step train , keep all the score of every models in order to compared them lately 
     '''
     params = generator_params(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_step,prune,verbose,OPTIMIZER,initialisation_restart,GPY,mode)
-
-    print("params","==============================",sys.getsizeof(params))
     pool = ThreadPool(3)
     for parameter in params :
         outputs = pool.starmap(search_step_parrallele,params)
@@ -345,9 +344,9 @@ def parralelize(X_train,Y_train,X_s,combi,BEST_MODELS,nb_restart,nb_iter,nb_by_s
     return outputs
 
 
-def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False,use_changepoint=False):
+def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,verbose,OPTIMIZER,depth=5,initialisation_restart=10,GPY=False,mode="lfbgs",parralelize_code=False,use_changepoint=False,base_kernels=["+PER,+LIN,+SE"]):
     """
-        FInd best combinaison of kernel that descrive the training data , keep one best model at each step contrary to the greedy seach of the analyse function
+        Find best combinaison of kernel that descrive the training data , keep one best model at each step contrary to the greedy seach of the analyse function
     inputs :
         X_train : Tensor, Training X
         Y_train : Tensor, Training Y
@@ -372,14 +371,14 @@ def straigth_analyse(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,l
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     count,constant,old_model = 0,0,""
     train_length = (depth+1)*len(KERNELS) + len(KERNELS)
-    COMB = first_kernel(use_changepoint)
+    COMB = first_kernel(use_changepoint,base_kernels)
     print(colored('[STATE]', 'red')," starting with ",COMB)
     for loop in range(depth) :
         TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
         loop += 1
         if loop > 1 :
             #COMB = search_and_add(tuple(BEST_MODELS["model_list"]),use_changepoint)
-            COMB = search_and_add(tuple(BEST_MODELS["model_list"]),False)
+            COMB = search_and_add(tuple(BEST_MODELS["model_list"]),False,base_kernels)
             print(colored('[STATE]', 'red')," Next combinaison to try : {}".format(COMB))
         iteration,j=0,0
         if parralelize_code :
@@ -472,17 +471,14 @@ def search_step(X_train,Y_train,X_s,combi,BEST_MODELS,TEMP_BEST_MODELS,nb_restar
                         model = CustomModel(kernels,init_values,X_train)
                         model = train(model,nb_iter,nb_restart,X_train,Y_train,kernel_list,OPTIMIZER,verbose,mode=mode)
                         BIC = model.compute_BIC(X_train,Y_train,kernel_list)
-                        print(BIC)
                         if verbose :  print("[STATE] ",BIC)
                         BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name)
                         if  BIC > BEST_MODELS["score"] and prune : TEMP_BEST_MODELS.loc[len(TEMP_BEST_MODELS)+1]=[[kernels_name],float(BIC[0][0])] 
-                        if math.isnan(BIC) == False or math.isinf(BIC) == False : 
+                        if m.isnan(BIC) == False or m.isinf(BIC) == False : 
                             true_restart += 1   
                         del model  
                     except Exception as e:
-                        print(e)
                         failed +=1  
-
             else :
                 k = gpy_kernels_from_names(kernel_list)
                 model = GPy.models.GPRegression(X_train.numpy(), Y_train.numpy(), k, normalizer=False)
@@ -553,7 +549,6 @@ def search_step_parrallele(X_train,Y_train,X_s,combi,TEMP_BEST_MODELS,nb_restart
                     BIC = -model.objective_function()
                     BEST_MODELS = update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy=True)
                 except Exception as e :
-                    print(e)
                     pass         
     except Exception as e:
         print(colored('[ERROR]', 'red')," error with kernel :",kernels_name)

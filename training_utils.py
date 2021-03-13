@@ -180,6 +180,31 @@ def train_step_single(model,iteration,X_train,Y_train,kernels_name,OPTIMIZER=tf.
 
 
 
+def train_step_search(X,Y,X_s,OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
+    '''
+        Single step of training using first ordre stochastic gradient descent 
+    inputs 
+        model CustomModel object 
+        iteration int itération counter non used 
+        X_train tf Tensor,
+        Y_train tf Tensor,
+        kernels_names list , list of kernels of the model
+        OPTIMIZER tf.optimizers 
+    outputs 
+        val float, objective function value 
+    '''
+    with tf.GradientTape(persistent=False) as tape :
+        tape.watch(model.variables)
+        model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=3,verbose=True,initialisation_restart=1,reduce_data=False,experimental_multiprocessing=False,GPY=False,use_changepoint=False) 
+        mu,cov = model.predict(X,Y,X_s,kernel)
+        val,_,_=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100) 
+    gradient = tape.gradient(val,model.variables)
+    try :
+        OPTIMIZER.apply_gradients(zip(gradient, model.variables))
+    except Exception as e :
+        OPTIMIZER.apply_gradients(gradient,model.variables)
+    return val
+
 
 
 def whitenning_datas(X):

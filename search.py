@@ -108,7 +108,7 @@ def decomposekernel(_kernel_list):
     return kernels
 
 
-def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False):
+def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
     '''
         Return all the possible combinaison of kernels starting with a '+' 
     inputs :
@@ -116,7 +116,7 @@ def search(kernels_name,_kernel_list,init,depth=5,use_changepoint=False):
         _kernel_list : list of tuples, not used 
         init : Bool, not used 
     '''
-    kerns = tuple((KERNELS_OPS.keys()))
+    kerns = tuple(base_kernels)
     COMB = []
     for i in range(1,depth) :
         if i == 1 : combination =  list(itertools.combinations(kerns, i))
@@ -149,12 +149,12 @@ def prune(tempbest,rest):
     return new_rest
 
 
-def prepare_changepoint(COMB,kernel_tuple=None):
+def prepare_changepoint(COMB,kernel_tuple=None,base_kernels=["+PER","+LIN","+SE"]):
     kerns = tuple()
-    for key,value in KERNELS_OPS.items() :
+    for key in base_kernels :
         if key[0]=="+" :
             kerns += (key[:],)
-    combination = combination =  [p for p in itertools.product(kerns, repeat=2)]# list(itertools.permutations(kerns, 2))
+    combination = [p for p in itertools.product(kerns, repeat=2)]# list(itertools.permutations(kerns, 2))
     for comb in combination :
         if kernel_tuple is not None :
             COMB.append(kernel_tuple+("CP"+str(comb),))
@@ -162,30 +162,33 @@ def prepare_changepoint(COMB,kernel_tuple=None):
             COMB.append(("CP"+str(comb),))
     return COMB
 
-def search_and_add(kernel_tuple,use_changepoint=False):
+def search_and_add(kernel_tuple,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
     ''' 
         Return all possible combinaison for one step
     inputs :
         _kernels_list : list, not used 
     '''
-    kerns = tuple((KERNELS_OPS.keys()))
+    for i in range(len(base_kernels)) :
+        base_kernels.append("*"+base_kernels[i][1:])
+    print(base_kernels)
+    kerns = tuple(base_kernels)
     COMB = []
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
         COMB.append(kernel_tuple+comb)
     if use_changepoint :
-        COMB = prepare_changepoint(COMB,kernel_tuple)
+        COMB = prepare_changepoint(COMB,kernel_tuple,base_kernels)
     return COMB
 
-def first_kernel(use_changepoint=False):
+def first_kernel(use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
     COMB =[]
-    kerns = tuple((KERNELS_OPS.keys()))
+    kerns = tuple(base_kernels)
     combination =  list(itertools.combinations(kerns, 1))
     for comb in combination :
         if comb[0][0] != "*" : 
             COMB.append(comb)
     if use_changepoint :
-        COMB = prepare_changepoint(COMB,kernel_tuple=None)
+        COMB = prepare_changepoint(COMB,kernel_tuple=None,base_kernels=base_kernels)
     return COMB
         
 
