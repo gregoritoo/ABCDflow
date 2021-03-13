@@ -261,18 +261,20 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
             Y_train = whitenning_datas(Y_train)
             X_s = whitenning_datas(X_s)
     i=-1 
-    if experimental_multiprocessing :
-        model,kernels = multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                        verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model,use_changepoint,base_kernels)
+    try :
+        if experimental_multiprocessing :
+            model,kernels = multithreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                            verbose,OPTIMIZER,depth,initialisation_restart,GPY,mode,experimental_multiprocessing,do_plot,save_model,use_changepoint,base_kernels)
+        elif straigth :
+            model,kernels = monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                        verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
+        elif not experimental_multiprocessing :
+            model,kernels = griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
+                                        verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
         return model,kernels
-    if straigth :
-        model,kernels = monothreaded_straight_analysis(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
-        return model,kernels
-    if not experimental_multiprocessing :
-        model,kernels = griddy_search(X_train,Y_train,X_s,nb_restart,nb_iter,nb_by_step,i,prune,loop_size,\
-                                    verbose,OPTIMIZER,initialisation_restart,GPY,depth,mode,experimental_multiprocessing,save_model,do_plot,use_changepoint,base_kernels)
-        return model,name_kernel
+    except Exception :
+        print(colored("The algorithm couldn't converge, please try normallizing data with the reduce_data parameter", 'red'))
+        return None,None
    
 def save_and_plot(func):
     '''
