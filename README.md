@@ -19,10 +19,12 @@ if __name__ =="__main__" :
     #load data
     Y = np.array(pd.read_csv("./data/periodic.csv")["x"]).reshape(-1, 1)
     X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
+    #data to predict
     X_s = np.linspace(0,len(Y)+30,len(Y)+30).reshape(-1, 1)
     
     #launch search of best kernels using scipy optimizer and multithreading with 10 random restart for each optimization step
-    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=4,verbose=True,initialisation_restart=10,reduce_data=False,experimental_multiprocessing=True,base_kernels=["+PER","+LIN","+SE"])  #straight 
+    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=False,depth=4,verbose=True,initialisation_restart=10,reduce_data=False,\
+                    experimental_multiprocessing=True,base_kernels=["+PER","+LIN","+SE"])  #straight 
     
     #Textual description
     model.describe(kernel)
