@@ -1,10 +1,13 @@
 
-import numpy as np  
 import os
 import sys 
-import pandas as pd 
-from kernels_utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
 import itertools 
+
+import numpy as np  
+import pandas as pd 
+
+from .kernels_utils import KERNELS_LENGTH,KERNELS,KERNELS_OPS,GPY_KERNELS
+
 borne = -1*10e40
 
 
@@ -150,11 +153,21 @@ def prune(tempbest,rest):
 
 
 def prepare_changepoint(COMB,kernel_tuple=None,base_kernels=["+PER","+LIN","+SE"]):
+    """ Add necessary string for changepoints
+
+    Args:
+        COMB (list ): combination list 
+        kernel_tuple (tuple): possible kernels
+        base_kernels (list, optional): Kernels to use . Defaults to ["+PER","+LIN","+SE"].
+
+    Returns:
+        [type]: [description]
+    """
     kerns = tuple()
     for key in base_kernels :
         if key[0]=="+" :
             kerns += (key[:],)
-    combination = [p for p in itertools.product(kerns, repeat=2)]# list(itertools.permutations(kerns, 2))
+    combination = [p for p in itertools.product(kerns, repeat=2)]
     for comb in combination :
         if kernel_tuple is not None :
             COMB.append(kernel_tuple+("CP"+str(comb),))
@@ -163,11 +176,17 @@ def prepare_changepoint(COMB,kernel_tuple=None,base_kernels=["+PER","+LIN","+SE"
     return COMB
 
 def search_and_add(kernel_tuple,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
-    ''' 
-        Return all possible combinaison for one step
-    inputs :
-        _kernels_list : list, not used 
-    '''
+    """
+    Return all possible combinaison for one step
+
+    Args:
+        kernel_tuple (tuple): possible kernels 
+        use_changepoint (bool, optional): If true apply changepoints. Defaults to False.
+        base_kernels (list, optional): Kernels to use . Defaults to ["+PER","+LIN","+SE"].
+
+    Returns:
+        COMB (list ): combination list 
+    """
     for i in range(len(base_kernels)) :
         base_kernels.append("*"+base_kernels[i][1:])
     print(base_kernels)
@@ -181,6 +200,15 @@ def search_and_add(kernel_tuple,use_changepoint=False,base_kernels=["+PER","+LIN
     return COMB
 
 def first_kernel(use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
+    """ Return possible combination for the first kernel 
+
+    Args:
+        use_changepoint (bool, optional): If true apply changepoints. Defaults to False.
+        base_kernels (list, optional): Kernels to use . Defaults to ["+PER","+LIN","+SE"].
+
+    Returns:
+        COMB (list ): combination list
+    """
     COMB =[]
     kerns = tuple(base_kernels)
     combination =  list(itertools.combinations(kerns, 1))
@@ -193,6 +221,14 @@ def first_kernel(use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]):
         
 
 def replacekernel(_kernel_list):
+    """Swipe a kernel from the kernel lsit
+
+    Args:
+        _kernel_list (list): list of kernels 
+
+    Returns:
+        (list ): combination list
+    """
     COMB = []
     counter=0
     replaced = list(_kernel_list)

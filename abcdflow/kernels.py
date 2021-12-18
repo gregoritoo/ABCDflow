@@ -1,10 +1,13 @@
-import numpy as np 
-import tensorflow as tf 
+
 import logging
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
 import math as m
 import sys 
 import os 
+
+import numpy as np 
+import tensorflow as tf 
+
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 

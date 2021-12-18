@@ -1,21 +1,23 @@
+import sys 
+import os 
+import itertools
+import math as m
+
 import numpy as np 
 import tensorflow as tf 
 import matplotlib.pyplot as plt 
-import math as m
 import seaborn as sn
 import GPy
-import sys 
-from kernels_utils import *
-from training_utils import *
-from plotting_utils import *
-import os 
-from language import *
-import kernels as kernels 
-import itertools
-from language import *
-from search import preparekernel,decomposekernel
-from kernels_utils import KERNELS_FUNCTIONS
 from termcolor import colored
+
+from .language import *
+from .kernels_utils import *
+from .training_utils import *
+from .plotting_utils import *
+from .search import preparekernel,decomposekernel
+from .kernels_utils import KERNELS_FUNCTIONS
+
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 PI = m.pi
@@ -92,18 +94,3 @@ class GPyWrapper(object):
             model = GPy.models.GPRegression(X_train, Y_train, k, normalizer=False)
             model.plot()
             loop_counter += 1
-
-"""    def _gpy_kernels_from_names(self,_kernel_list,params):
-        try :
-            kernel = GPy.kern.Linear(1,params[0][0])
-        except Exception as e:
-            print(e)
-        print(kernel)
-        for j in range(1,len(_kernel_list)) :
-            if _kernel_list[j][0] == "+" :
-                kernel = kernel + GPY_KERNELS[_kernel_list[j][1 :]](1,params[j])
-            elif _kernel_list[j][0] == "*" :
-                kernel = kernel * GPY_KERNELS[_kernel_list[j][1 :]](1,params[j])
-            else :
-                raise ValueError("Illicite operation")
-        return kernel"""

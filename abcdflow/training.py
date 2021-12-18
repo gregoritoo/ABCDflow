@@ -1,34 +1,37 @@
-import numpy as np 
-import tensorflow as tf 
 import os
 import logging
+import contextlib
+import functools
+import pickle 
+import sys 
+import itertools
+from itertools import chain
+import time
+import math as m
+
+import numpy as np 
+import tensorflow as tf 
+import matplotlib.pyplot as plt 
+import seaborn as sn
+import GPy
+import pandas as pd 
+import multiprocessing
+from multiprocessing.dummy import Pool as ThreadPool 
+import scipy 
+from gpflow.utilities import print_summary
+from termcolor import colored
+
+from .kernels_utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
+from .search import *
+from .Regressor import * 
+from .Regressor_GPy import * 
+from .kernels_utils import *
+from .training_utils import *
+from .plotting_utils import *
+
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-from Regressor import * 
-from Regressor_GPy import * 
-from kernels_utils import *
-from training_utils import *
-from plotting_utils import *
-import pandas as pd 
-from itertools import chain
-import itertools
-import pickle 
-import multiprocessing
-from multiprocessing.dummy import Pool as ThreadPool 
-import contextlib
-import functools
-import time
-import scipy 
-from search import preparekernel,addkernel,mulkernel,search,prune,search_and_add,replacekernel,gpy_kernels_from_names,first_kernel
-from kernels_utils import KERNELS,KERNELS_LENGTH,KERNELS_OPS,GPY_KERNELS
-from termcolor import colored
-from gpflow.utilities import print_summary
 
 PI = m.pi
 _precision = tf.float64
@@ -212,8 +215,9 @@ def single_model(X_train,Y_train,X_s,kernel,OPTIMIZER=tf.optimizers.Adam(learnin
     BEST_MODELS = {"model_name":[],"model_list":[],'model':[],"score": borne,"init_values":None}
     TEMP_BEST_MODELS = pd.DataFrame(columns=["Name","score"])
     full_length= 1
-    BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel,BEST_MODELS=BEST_MODELS,TEMP_BEST_MODELS=TEMP_BEST_MODELS,\
-        nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,OPTIMIZER=OPTIMIZER,nb_by_step=None,prune=False,unique=True,single=True,mode=mode,initialisation_restart=initialisation_restart,GPY=GPY)
+    BEST_MODELS = search_step(X_train=X_train,Y_train=Y_train,X_s=X_s,combi=kernel, BEST_MODELS=BEST_MODELS,TEMP_BEST_MODELS=TEMP_BEST_MODELS,\
+                        nb_restart=nb_restart,nb_iter=nb_iter,verbose = verbose,OPTIMIZER=OPTIMIZER,nb_by_step=None,\
+                        prune=False,unique=True,single=True,mode=mode,initialisation_restart=initialisation_restart,GPY=GPY)
     print_trainning_steps(iteration,full_length,kernel)
     if not GPY :
         model=BEST_MODELS["model"]
@@ -276,29 +280,7 @@ def launch_analysis(X_train,Y_train,X_s,nb_restart=15,nb_iter=2,do_plot=False,sa
         print(colored("The algorithm couldn't converge, please try normallizing data with the reduce_data parameter", 'red'))
         return None,None
    
-def save_and_plot(func):
-    '''
-        Decorator to plot the figure and pickle the model if user validate it.
-    '''
-    def wrapper_func(*args,**kwargs):
-        model,kernels = func(*args,**kwargs)
-        name = './best_models/best_model'
-        do_plot,save_model=args[-3],args[-2]
-        X_train,Y_train,X_s = args[0],args[1],args[2]
-        if do_plot :
-            try :
-                mu,cov = model.predict(X_train,Y_train,X_s,kernels)
-                model.plot(mu,cov,X_train,Y_train,X_s,kernels)
-            except :
-                model.plot()
-            plt.show()
-        if save_model :
-            with open(name, 'wb') as f :
-                pickle.dump(model,f)
-            with open( './best_models/kernels', 'wb') as f :
-                pickle.dump(kernels,f)
-        return model,kernels
-    return wrapper_func
+
 
 
 @save_and_plot
@@ -569,9 +551,7 @@ def update_current_best_model(BEST_MODELS,model,BIC,kernel_list,kernels_name,GPy
         BEST_MODELS["model_list"] = kernel_list
         BEST_MODELS["score"] = BIC 
         if not GPy :
-            BEST_MODELS["model"] = model
-            BEST_MODELS["init_values"] =  model.initialisation_values
+            BEST_MODELS["model"],BEST_MODELS["init_values"] = model,model.initialisation_values
         else :
-            BEST_MODELS["model"] = GPyWrapper(model,kernel_list)
-            BEST_MODELS["init_values"] =  model.param_array()
+            BEST_MODELS["model"],BEST_MODELS["init_values"]  = GPyWrapper(model,kernel_list),model.param_array()
     return BEST_MODELS

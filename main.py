@@ -1,26 +1,9 @@
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
-import os
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-from kernels_utils import *
-from training_utils import *
-from plotting_utils import *
-import pandas as pd 
-from itertools import chain
-import itertools
-import pickle 
-import contextlib
-import functools
-import time
-import scipy 
-import tensorflow as tf 
-from changepoint import *
-from training import *
-from search import *
+import time 
+
+from abcdflow.training import launch_analysis
 
 
 
@@ -45,7 +28,7 @@ if __name__ =="__main__" :
     plt.show()"""
     #X_s = np.linspace(-20,20,len(X)+40).reshape(-1, 1)
     t0 = time.time()
-    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=2,verbose=True,initialisation_restart=3,reduce_data=False,experimental_multiprocessing=True,GPY=False,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]) #straight parameters == True
+    model,kernel= launch_analysis(X,Y,X_s,straigth=True,do_plot=True,depth=2,verbose=True,initialisation_restart=10,reduce_data=False,experimental_multiprocessing=True,GPY=False,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]) #straight parameters == True
     print('time took: {} seconds'.format(time.time()-t0))
     model.describe(kernel)
     mu,cov = model.predict(X,Y,X_s,kernel)

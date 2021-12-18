@@ -1,25 +1,30 @@
-import numpy as np 
-import tensorflow as tf 
-from pprint import pprint
-import os 
-import logging
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.get_logger().setLevel('INFO')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-import kernels as kernels 
-import os 
-import pandas as pd 
 import contextlib
 import functools
 import os
 import time
+from pprint import pprint
+import logging
+import math as m
+import sys 
+
+import numpy as np 
+import tensorflow as tf 
+import matplotlib.pyplot as plt 
 import seaborn as sn
+import GPy
 import gpflow
+
+from .kernels import *
+
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+tf.get_logger().setLevel('INFO')
+
+
+
+
+
+
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
@@ -68,12 +73,12 @@ KERNELS_LENGTH = {
 
 
 KERNELS_FUNCTIONS = {
-    "LIN" : kernels.LIN,
-    "PER" : kernels.PER,
-    "SE" : kernels.SE,
-    "RQ" : kernels.RQ,
-    "CONST" : kernels.CONST,
-    "WN" :kernels.WN,
+    "LIN" : LIN,
+    "PER" : PER,
+    "SE" : SE,
+    "RQ" : RQ,
+    "CONST" : CONST,
+    "WN" : WN,
 
 }
 

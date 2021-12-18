@@ -1,30 +1,30 @@
-import numpy as np 
-import tensorflow as tf 
+
 from pprint import pprint
-import os 
-import logging
-from kernels_utils import *
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.get_logger().setLevel('INFO')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-import kernels as kernels 
-import os 
-import pandas as pd 
 import contextlib
 import functools
 import os
 import time
+import logging
+
+
+
+import numpy as np 
+import tensorflow as tf 
+import matplotlib.pyplot as plt 
+import math as m
 import seaborn as sn
+import GPy
+import pandas as pd 
+import seaborn as sn
+
+from .kernels_utils import *
+
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
-
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
+tf.get_logger().setLevel('INFO')
 
 CB91_Blue = '#2CBDFE'
 CB91_Green = '#47DBCD'
@@ -93,7 +93,7 @@ def get_values(mu_s,cov_s,nb_samples=100):
 
 def print_trainning_steps(count,train_length,combinaison_element):
     '''
-        Print the avancing of the training ex, ==>..|
+        Print the state of the training ex, ==>..|
     inputs :
         count, int, actual training step 
         train_length, int max training step

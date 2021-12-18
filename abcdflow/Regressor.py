@@ -1,26 +1,34 @@
+
+import math as m
+import sys 
+import os 
+import itertools
+import seaborn as sn
+
 import numpy as np 
 import tensorflow as tf 
 import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
 import GPy
-import sys 
-from kernels_utils import *
-from training_utils import *
-from plotting_utils import *
-import os 
-from language import *
-import kernels as kernels 
-import itertools
-from language import *
-from search import preparekernel,decomposekernel
-from kernels_utils import KERNELS_FUNCTIONS,KERNELS_LENGTH
 from termcolor import colored
+
+from .kernels import * 
+from .language import *
+from .kernels_utils import *
+from .training_utils import *
+from .plotting_utils import *
+from .search import preparekernel,decomposekernel
+from .kernels_utils import KERNELS_FUNCTIONS,KERNELS_LENGTH
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 tf.keras.backend.set_floatx('float64')
 PI = m.pi
 _precision = tf.float64
 
+
+
+def convert_tensor(X_train):
+    X_train = tf.Variable(X_train,dtype=_precision)
+    return X_train
 
 class CustomModel(object):
     '''
@@ -105,10 +113,25 @@ class CustomModel(object):
 
     #@tf.function
     def __call__(self,X_train,Y_train,kernels_name):
+        """[summary]
+
+        Args:
+            X_train ([type]): [description]
+            Y_train ([type]): [description]
+            kernels_name ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         params=vars(self)
         return log_cholesky_l_test(X_train,Y_train,params,kernel=kernels_name)
 
     def viewVar(self,kernels):
+        """[summary]
+
+        Args:
+            kernels ([type]): [description]
+        """
         list_vars = self.variables
         print("\n Parameters of  : {}".format(kernels))
         print("   var name               |               value")
@@ -116,22 +139,64 @@ class CustomModel(object):
             print("   {}".format(str(name))+" "*int(23-int(len(str(name))))+"|"+" "*int(23-int(len(str(value.numpy()))))+"{}".format(value.numpy()))
 
 
-    def predict(self,X_train,Y_train,X_s,kernels_name):
-        params= self._variables
-        try :
-            X_train = tf.Variable(X_train,dtype=_precision)
-            Y_train = tf.Variable(Y_train,dtype=_precision)
-            X_s = tf.Variable(X_s,dtype=_precision)
-        except Exception as e:
-            pass
+    def evaluate_posterior(self,X_train,Y_train,X_s,kernels_name,params):
+        """[summary]
+
+        Args:
+            X_train ([type]): [description]
+            Y_train ([type]): [description]
+            X_s ([type]): [description]
+            kernels_name ([type]): [description]
+            params ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         cov = self._get_cov(X_train,X_train,kernels_name,params)
         cov_ss =  self._get_cov(X_s,X_s,kernels_name,params)
         cov_s  =  self._get_cov(X_train,X_s,kernels_name,params)
         mu,cov = self._compute_posterior(Y_train,cov,cov_s,cov_ss)
         return mu,cov
 
+    def predict(self,X_train,Y_train,X_s,kernels_name):
+        """[summary]
+
+        Args:
+            X_train ([type]): [description]
+            Y_train ([type]): [description]
+            X_s ([type]): [description]
+            kernels_name ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        params= self._variables
+        try :
+            X_train = convert_tensor(X_train)
+            Y_train = convert_tensor(Y_train)
+            X_s = convert_tensor(X_s)
+        except Exception as e:
+            pass
+        mu,cov = self.evaluate_posterior(X_train,Y_train,X_s,kernels_name,params)
+        return mu,cov
+
 
     def _get_cov(self,X,Y,kernel,params):
+        """[summary]
+
+        Args:
+            X_train (numpy array): training points
+            Y_train (numpy array): training points
+            kernel (list): list of kernels. Defaults to None.
+            params ([type]): [description]
+
+        Raises:
+            NotImplementedError: [description]
+            NotImplementedError: [description]
+
+        Returns:
+            [type]: [description]
+        """
         params_name = list(params.keys())
         cov = 0
         num = 0
@@ -161,11 +226,20 @@ class CustomModel(object):
                 par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][2:-1]]]
                 num += KERNELS_LENGTH[kernel_list[1][2:-1]]
                 par_name_sigmoid,num = params_name[num:num+2],num+2
-                cov += kernels.CP(X,Y,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
+                cov += CP(X,Y,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
         return cov
 
 
     def compute_BIC(self,X_train,Y_train,kernels_name):
+        """ Evaluate the Bayesian information ciriterion
+
+        Args:
+            X_train (numpy array): training points
+            Y_train (numpy array): training points
+            kernels_name (list): list of kernels
+        Returns:
+            [int]: Bayesian information criterion
+        """
         params= self._variables
         n =tf.Variable(X_train.shape[0],dtype=_precision)
         k = tf.Variable(len(params),dtype=_precision)
@@ -176,6 +250,16 @@ class CustomModel(object):
         return  -ll - 0.5*k*tf.math.log(n)
 
     def plot(self,mu,cov,X_train,Y_train,X_s,kernel_name=None):
+        """ Plot the predicted points with the confidence interval
+
+        Args:
+            mu (tf tensor): predicted mean
+            cov (tf tensor): predicted covariance
+            X_train (numpy array): training points
+            Y_train (numpy array): training points
+            kernels_name (list): list of kernels. Defaults to None.
+            X_s (tf tensor): predicted points 
+        """
         Y_train,X_train,X_s = Y_train,X_train,X_s
         mean,stdp,stdi=get_values(mu.numpy().reshape(-1,),cov.numpy(),nb_samples=100)
         if kernel_name is not None and kernel_name[:2] != "CP": 
@@ -186,6 +270,17 @@ class CustomModel(object):
         plt.show()
 
     def _compute_posterior(self,y,cov,cov_s,cov_ss):
+        """[summary]
+
+        Args:
+            y ([type]): [description]
+            cov ([type]): [description]
+            cov_s ([type]): [description]
+            cov_ss ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         params= self._variables
         mu = tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),y)
         cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s),tf.linalg.inv(cov+params["noise"]*tf.eye(cov.shape[0],dtype=_precision))),cov_s)
@@ -193,6 +288,14 @@ class CustomModel(object):
 
 
     def split_params(self,kernel_list):
+        """[summary]
+
+        Args:
+            kernel_list ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         params = list(self._opti_variables_name)
         list_params = []
         pos = 0
@@ -217,6 +320,11 @@ class CustomModel(object):
         return list_params
 
     def describe(self,kernel_list) :
+        """[summary]
+
+        Args:
+            kernel_list ([type]): [description]
+        """
         list_params = self.split_params(kernel_list)
         params_dic = self._variables
         loop_counter= 0
@@ -229,6 +337,14 @@ class CustomModel(object):
         print(colored('[DESCRIPTION]', 'blue'),summary)
 
     def decompose(self,kernel_list,X_train,Y_train,X_s):
+        """[summary]
+
+        Args:
+            kernel_list ([type]): [description]
+            X_train ([type]): [description]
+            Y_train ([type]): [description]
+            X_s ([type]): [description]
+        """
         list_params = self.split_params(kernel_list)
         splitted,pos = devellopement(kernel_list)
         params_dic = self._variables

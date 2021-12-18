@@ -1,25 +1,26 @@
-import numpy as np 
-import tensorflow as tf 
-from pprint import pprint
-import os 
-import logging
-from kernels_utils import *
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-tf.get_logger().setLevel('INFO')
-import matplotlib.pyplot as plt 
-import math as m
-import seaborn as sn
-import GPy
-import sys 
-import kernels as kernels 
-import os 
-import pandas as pd 
 import contextlib
 import functools
 import os
 import time
+from pprint import pprint
+import logging
+import sys 
+
+import numpy as np 
+import tensorflow as tf 
+import matplotlib.pyplot as plt 
+import math as m
+import GPy
+import pandas as pd 
 import seaborn as sn
+
+
+from .kernels import *
+from .kernels_utils import *
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+tf.get_logger().setLevel('INFO')
+
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
@@ -30,6 +31,31 @@ tf.keras.backend.set_floatx('float64')
 PI = m.pi
 _jitter = 1e-7
 _precision = tf.float64
+
+
+def save_and_plot(func):
+    '''
+        Decorator to plot the figure and pickle the model if user validate it.
+    '''
+    def wrapper_func(*args,**kwargs):
+        model,kernels = func(*args,**kwargs)
+        name = './best_models/best_model'
+        do_plot,save_model=args[-3],args[-2]
+        X_train,Y_train,X_s = args[0],args[1],args[2]
+        if do_plot :
+            try :
+                mu,cov = model.predict(X_train,Y_train,X_s,kernels)
+                model.plot(mu,cov,X_train,Y_train,X_s,kernels)
+            except :
+                model.plot()
+            plt.show()
+        if save_model :
+            with open(name, 'wb') as f :
+                pickle.dump(model,f)
+            with open( './best_models/kernels', 'wb') as f :
+                pickle.dump(kernels,f)
+        return model,kernels
+    return wrapper_func
 
 
 
@@ -118,7 +144,7 @@ def log_cholesky_l_test(X,Y,params,kernel):
             par_name_right_method = params_name[num:num+KERNELS_LENGTH[kernel_list[1][2:-1]]]
             num += KERNELS_LENGTH[kernel_list[1][2:-1]]
             par_name_sigmoid,num = params_name[num:num+2],num+2
-            cov += kernels.CP(X,X,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
+            cov += CP(X,X,[params[p] for p in par_name_sigmoid],left_method,right_method,[params[p] for p in par_name_left_method],[params[p] for p in par_name_right_method])
     decomposed, _jitter,loop = False, 10e-7, 0
     try :
         _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(X.shape[0],dtype=_precision),dtype=_precision)),dtype=_precision)

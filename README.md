@@ -9,6 +9,13 @@ This project uses three differents tehniques to maximize the log likelihood :
 
 How to use it ?
 ==============
+
+Install dependence libraries 
+
+```
+    pip install -r abcdflow/requirements.txt
+```
+
 ```python
 import numpy as np
 import pandas as pd 
