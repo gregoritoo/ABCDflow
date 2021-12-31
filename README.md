@@ -2,6 +2,9 @@
 
 Unofficial implementation of https://arxiv.org/pdf/1302.4922.pdf and https://github.com/duvenaud/phd-thesis
 
+
+Medium article : https://medium.com/analytics-vidhya/automatic-time-series-description-using-gaussian-processes-b9bf09f6d0ce
+
 This project uses three differents tehniques to maximize the log likelihood :
 - Gradient descent using tensorflow 
 - L-BFGS-B optimizer (scipy)
@@ -19,7 +22,7 @@ Install dependence libraries
 ```python
 import numpy as np
 import pandas as pd 
-from training import *
+from abcdflow.training import *
 import matplotlib.pyplot as plt 
 
 if __name__ =="__main__" :
