@@ -26,7 +26,6 @@ _precision = tf.float64
 
 class GPyWrapper:
     def __init__(self, model, kernels):
-        print("***************************** INSTANTIATING NEW MDOEL")
         self._model = model
         self._kernels_list = kernels
 
@@ -36,7 +35,7 @@ class GPyWrapper:
     def variables_names(self):
         return self._model.parameter_names()
 
-    def viewVar(self, kernels):
+    def view_parameters(self, kernels):
         print("\n Parameters of  : {}".format(kernels))
         print(self._model)
 
@@ -52,13 +51,13 @@ class GPyWrapper:
         pos = 0
         for element in kernel_list:
             if element[1] == "P":
-                list_params.append(params_values[pos : pos + 3])
+                list_params.append(params_values[pos: pos + 3])
                 pos += 3
             elif element[1] == "L":
-                list_params.append(params_values[pos : pos + 1])
+                list_params.append(params_values[pos: pos + 1])
                 pos += 1
             else:
-                list_params.append(params_values[pos : pos + 2])
+                list_params.append(params_values[pos: pos + 2])
                 pos += 2
         return list_params
 
@@ -77,10 +76,12 @@ class GPyWrapper:
                 + "\n"
             )
             loop_counter += 1
-        summary = summary + "\t It also has a noise of {:.1f} .".format(variables[-1])
+        summary = summary + \
+            "\t It also has a noise component of {:.1f} .".format(
+                variables[-1])
         print(summary)
 
-    def viewVar(self, kernels):
+    def view_parameters(self, kernels):
         print(self._model)
 
     def decompose(self, kernel_list, X_train, Y_train, X_s):
@@ -91,14 +92,16 @@ class GPyWrapper:
         counter = 0
         for element in splitted:
             kernels = preparekernel(element)
-            list_of_dic = [list_params[position] for position in pos[loop_counter]]
+            list_of_dic = [list_params[position]
+                           for position in pos[loop_counter]]
             params = [list_params[position] for position in pos[loop_counter]]
             loop_counter += 1
             try:
                 k = self._gpy_kernels_from_names(element, params)
             except Exception as e:
                 print(e)
-            model = GPy.models.GPRegression(X_train, Y_train, k, normalizer=False)
+            model = GPy.models.GPRegression(
+                X_train, Y_train, k, normalizer=False)
             model.plot()
             loop_counter += 1
 

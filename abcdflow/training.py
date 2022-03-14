@@ -226,7 +226,8 @@ def analyse(
                 j = 0
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS[:nb_by_step]
                 _before_len = len(COMB)
-                COMB = prune(TEMP_BEST_MODELS["Name"].tolist(), COMB[iteration:])
+                COMB = prune(
+                    TEMP_BEST_MODELS["Name"].tolist(), COMB[iteration:])
                 _to_add = _before_len - len(COMB) - 1
                 iteration += _to_add
             BEST_MODELS, TEMP_BEST_MODELS = search_step(
@@ -274,7 +275,7 @@ def analyse(
         sys.stdout.flush()
     if not GPY:
         model = BEST_MODELS["model"]
-        model.viewVar(BEST_MODELS["model_list"])
+        model.view_parameters(BEST_MODELS["model_list"])
         print(
             colored("[STATE]", "red"),
             "model BIC is {}".format(
@@ -359,10 +360,11 @@ def single_model(
     print_trainning_steps(iteration, full_length, kernel)
     if not GPY:
         model = BEST_MODELS["model"]
-        model.viewVar(kernel)
+        model.view_parameters(kernel)
         print(
             colored("[STATE]", "red"),
-            "model BIC is {}".format(model.compute_BIC(X_train, Y_train, kernel)),
+            "model BIC is {}".format(
+                model.compute_BIC(X_train, Y_train, kernel)),
         )
         mu, cov = model.predict(X_train, Y_train, X_s, kernel)
     if do_plot:
@@ -796,9 +798,11 @@ def straigth_analyse(
         loop += 1
         if loop > 1:
             # COMB = search_and_add(tuple(BEST_MODELS["model_list"]),use_changepoint)
-            COMB = search_and_add(tuple(BEST_MODELS["model_list"]), False, base_kernels)
+            COMB = search_and_add(
+                tuple(BEST_MODELS["model_list"]), False, base_kernels)
             print(
-                colored("[STATE]", "red"), " Next combinaison to try : {}".format(COMB)
+                colored("[STATE]", "red"), " Next combinaison to try : {}".format(
+                    COMB)
             )
         iteration, j = 0, 0
         if parralelize_code:
@@ -833,7 +837,8 @@ def straigth_analyse(
             if constant > 1:
                 return BEST_MODELS["model"], BEST_MODELS["model_list"]
             if loop > 2:
-                new_COMB = replacekernel(BEST_MODELS["model_list"])  # swap step
+                new_COMB = replacekernel(
+                    BEST_MODELS["model_list"])  # swap step
                 print(
                     colored("[STATE]", "red"),
                     " Trying to switch kernels : trying {} ".format(new_COMB),
@@ -893,7 +898,8 @@ def straigth_analyse(
                 ),
             )
             if loop > 2 and len(BEST_MODELS["model_list"]) > 2:
-                new_COMB = replacekernel(BEST_MODELS["model_list"])  # swap step
+                new_COMB = replacekernel(
+                    BEST_MODELS["model_list"])  # swap step
                 print(
                     colored("[STATE]", "red"),
                     " Trying to switch kernels : trying {} ".format(new_COMB),
@@ -927,11 +933,12 @@ def straigth_analyse(
                     BEST_MODELS = TEMP_MODELS
         print(
             colored("[STATE]", "red"),
-            " The best model is {} after swap ".format(BEST_MODELS["model_list"]),
+            " The best model is {} after swap ".format(
+                BEST_MODELS["model_list"]),
         )
     if not GPY and verbose:
         model = BEST_MODELS["model"]
-        model.viewVar(BEST_MODELS["model_list"])
+        model.view_parameters(BEST_MODELS["model_list"])
         print(
             colored("[STATE]", "red"),
             " model BIC is {}".format(
@@ -940,7 +947,7 @@ def straigth_analyse(
         )
     else:
         model = BEST_MODELS["model"]
-        model.viewVar(BEST_MODELS["model_list"])
+        model.view_parameters(BEST_MODELS["model_list"])
     return BEST_MODELS["model"], BEST_MODELS["model_list"]
 
 

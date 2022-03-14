@@ -1,40 +1,33 @@
-import numpy as np 
-import pandas as pd 
-import matplotlib.pyplot as plt 
-import time 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
 
-from abcdflow.training import launch_analysis
+from abcdflow.trainer import Trainer
 
+if __name__ == "__main__":
+    # load data
+    Y = np.array(pd.read_csv("./data/co2.csv")["x"][:600]).reshape(-1, 1)
+    X = np.linspace(0, len(Y), len(Y)).reshape(-1, 1)
+    # points to predict
+    X_s = np.linspace(0, len(Y)+30, len(Y)+30).reshape(-1, 1)
 
+    # launch search of best kernels using scipy optimizer and multithreading with 10 random restart for each optimization step
+    training_class = Trainer(X, Y, X_s, straigth=True, GPY=False, do_plot=True, depth=2, verbose=True, initialisation_restart=10, reduce_data=False,
+                             experimental_multiprocessing=True, use_changepoint=True, base_kernels=["+PER", "+LIN", "+SE"])
 
+    model, kernel = training_class.launch_analysis()
 
-
-
-if __name__ =="__main__" :
-    #Y = np.append(np.linspace(1,200,200),200+10*np.sin(np.linspace(1,200,200))).reshape(-1, 1)
-    Y = np.array(pd.read_csv("./data/co2.csv")["x"][:600]).reshape(-1,1)
-    #Y = np.append(5+40*np.sin(0.25*np.linspace(0, 100, 101)),2*np.linspace(5, 250, 246)).reshape(-1, 1)
-    #plt.plot(Y)
-    #plt.show()
-    X_s = np.linspace(0,len(Y)+50,len(Y)+50).reshape(-1, 1)
-    X = np.linspace(0,len(Y),len(Y)).reshape(-1,1)
-    #plt.plot(Y)
-    #plt.show()
-    t0 = time.time()
-    """X = np.linspace(-10, 10, 101)[:, None].reshape(-1, 1)
-    Y = np.array(np.cos( (X - 5) / 2 )**2 * X * 2).reshape(-1, 1)
-    X_s = np.linspace(-20,20,len(Y)+20).reshape(-1, 1)
-    plt.plot(Y)
-    plt.show()"""
-    #X_s = np.linspace(-20,20,len(X)+40).reshape(-1, 1)
-    t0 = time.time()
-    model,kernel= launch_analysis(X,Y,X_s,straigth=True,GPY=True,do_plot=True,depth=1,verbose=True,initialisation_restart=9,reduce_data=False,experimental_multiprocessing=True,use_changepoint=False,base_kernels=["+PER","+LIN","+SE"]) #straight parameters == True
-    print(model,kernel)
-    print('time took: {} seconds'.format(time.time()-t0))
+    # Textual description
     model.describe(kernel)
-    mu,cov = model.predict(X,Y,X_s,kernel)
-    model.plot(mu,cov,X,Y,X_s,kernel)
-    model.plot()
-    plt.show()
-    #model.decompose(kernel,X,Y,X_s)
 
+    # predict posterior mean and covariance
+    mu, cov = model.predict(X, Y, X_s, kernel)
+
+    # Plot results
+    model.plot(mu, cov, X, Y, X_s, kernel)
+    plt.show()
+
+    # Plot contribution of every group of kernel using kernels devellopement as in the article
+    model.decompose(kernel, X, Y, X_s)
+    plt.show()
