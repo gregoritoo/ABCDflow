@@ -1,0 +1,8 @@
+
+# utilitaries files 
+
+*.vscode/
+
+__pycache__/
+
+newenv/
