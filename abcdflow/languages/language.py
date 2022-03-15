@@ -1,9 +1,9 @@
 import numpy as np
-import os
 import re
+from typing import *
 
 
-def remove_useless_term_changepoint(CP):
+def remove_useless_term_changepoint(CP: str) -> str:
     CP = CP.replace("CP('", "").replace("', '", ",").replace("')", "")
     CP = CP.split(",")
     CP[0] = CP[0]+":DEC_SIG"
@@ -11,20 +11,18 @@ def remove_useless_term_changepoint(CP):
     return CP
 
 
-def devellopement(kernel_list):
-    '''
-        Devellop kernels as describe in https://github.com/duvenaud/phd-thesis 
-            ex :
-    inputs :
-        kernel_list = list, list containing the kernels of the model
-    outputs :
-        splitted list of list, list containing develloped kernels
-        splitted_params list of list, list containing develloped parameters associated to the kernels 
+def devellopement(kernel_list: List) -> Tuple[List, List]:
+    '''Devellop kernels as describe in https://github.com/duvenaud/phd-thesis
+                ex :
+        inputs :
+            kernel_list = list, list containing the kernels of the model
+        outputs :
+            splitted list of list, list containing develloped kernels
+            splitted_params list of list, list containing develloped parameters associated to the kernels
     '''
     splitted = []
     splitted_params = []
     j = 0
-    first_mul = False
     for i in range(len(kernel_list)):
         if kernel_list[i][0] == "*":
             if j != i:
@@ -52,7 +50,7 @@ def devellopement(kernel_list):
     return splitted, splitted_params
 
 
-def comment_changepoint(text, kern, params_dic):
+def comment_changepoint(text: str, kern: str, params_dic: dict) -> str:
     '''
         Text description for changepoints kernels 
     inputs :
@@ -73,7 +71,7 @@ def comment_changepoint(text, kern, params_dic):
     return text
 
 
-def comment(text, component, pos, params_dic, list_params):
+def comment(text: str, component: List, pos: List, params_dic: dict, list_params: List) -> str:
     '''
         Text description using regex to extract kernels'names
     inputs :
@@ -121,7 +119,7 @@ def comment(text, component, pos, params_dic, list_params):
     return text[:-2]+"."
 
 
-def comment_gpy(text, component, pos, variables_names, variables):
+def comment_gpy(text: str, component: List, pos: List, variables_names: List, variables: List) -> str:
     list_of_dic = [variables[position] for position in pos]
     for j in range(len(component)):
         kern = component[j]

@@ -16,17 +16,17 @@ import pandas as pd
 import seaborn as sn
 
 
-from .kernels import *
-from .kernels_utils import *
-from .Regressor_GPy import GPyWrapper
+from ..kernels.kernels import *
+from ..kernels.kernels_utils import *
+from ..regressors.Regressor_GPy import GPyWrapper
 
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.get_logger().setLevel('INFO')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.get_logger().setLevel("INFO")
 
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.keras.backend.set_floatx('float64')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.keras.backend.set_floatx("float64")
 
 
 PI = m.pi
@@ -35,13 +35,14 @@ _precision = tf.float64
 
 
 def save_and_plot(func):
-    '''
-        Decorator to plot the figure and pickle the model if user validate it.
-    '''
+    """
+    Decorator to plot the figure and pickle the model if user validate it.
+    """
+
     def wrapper_func(*args, **kwargs):
         print(func, *args, **kwargs)
         model, kernels = func(*args, **kwargs)
-        name = './best_models/best_model'
+        name = "./best_models/best_model"
         do_plot, save_model = args[-3], args[-2]
         X_train, Y_train, X_s = args[0], args[1], args[2]
         if do_plot:
@@ -52,26 +53,33 @@ def save_and_plot(func):
                 model.plot()
             plt.show()
         if save_model:
-            with open(name, 'wb') as f:
+            with open(name, "wb") as f:
                 pickle.dump(model, f)
-            with open('./best_models/kernels', 'wb') as f:
+            with open("./best_models/kernels", "wb") as f:
                 pickle.dump(kernels, f)
         return model, kernels
+
     return wrapper_func
 
 
 def print_trainning_steps(count, train_length, combinaison_element):
-    '''
+    """
         Print the avancing of the training ex, ==>..|
     inputs :
-        count, int, actual training step 
+        count, int, actual training step
         train_length, int max training step
-        combinaison_element, tuple containing the model's kernel 
+        combinaison_element, tuple containing the model's kernel
     outputs :
         None
-    '''
-    sys.stdout.write("\r"+"="*int(count/train_length*50)+">"+"."*int((train_length -
-                     count)/train_length*50)+"|"+" * model is {} ".format(combinaison_element))
+    """
+    sys.stdout.write(
+        "\r"
+        + "=" * int(count / train_length * 50)
+        + ">"
+        + "." * int((train_length - count) / train_length * 50)
+        + "|"
+        + " * model is {} ".format(combinaison_element)
+    )
     sys.stdout.flush()
     sys.stdout.write("\n")
     sys.stdout.flush()
@@ -124,30 +132,9 @@ def update_best_model_after_parallelized_step(outputs_threadpool, BEST_MODELS):
     return BEST_MODELS
 
 
-def compute_posterior(y, cov, cov_s, cov_ss):
-    '''
-        Compute posterior mean vector and posterior covariance matrix 
-         mu = transpose(K*).(K+s^2*I)^-1.y
-         cov = K**-transpose(K*).(K+s^2*I)^-1.K*
-    inputs :
-        Y tf Tensor, training x
-        cov tf Tensor, training data y
-        cov_s tf Tensor, 
-        cov_ss tf Tensor, 
-    outputs:
-        mu tf Tensor, tensor containing predicted values 
-        cov tf Tensor, tensor used to compute confidence interval 
-    '''
-    mu = tf.matmul(tf.matmul(tf.transpose(cov_s), tf.linalg.inv(
-        cov+params["noise"]*tf.eye(cov.shape[0], dtype=_precision))), y)
-    cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s), tf.linalg.inv(
-        cov+params["noise"]*tf.eye(cov.shape[0], dtype=_precision))), cov_s)
-    return mu, cov
-
-
 def log_cholesky_l_test(X, Y, params, kernel):
-    '''
-        Compute negative log-likelihood using cholesky decomposition 
+    """
+        Compute negative log-likelihood using cholesky decomposition
     inputs :
         X tf Tensor, training x
         Y tf Tensor, training data y
@@ -155,21 +142,21 @@ def log_cholesky_l_test(X, Y, params, kernel):
         kernel list, list containg model's kernel and theirs operations
     outputs:
         loss float64, negative log likelihood
-    '''
+    """
     num = 0
     params_name = list(params.keys())
     cov = 1
     for op in kernel:
         if op[0] == "+":
             method = KERNELS_FUNCTIONS[op[1:]]
-            par = params_name[num:num+KERNELS_LENGTH[op[1:]]]
+            par = params_name[num : num + KERNELS_LENGTH[op[1:]]]
             if not method:
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov += method(X, X, [params[p] for p in par])
             num += KERNELS_LENGTH[op[1:]]
         elif op[0] == "*":
             method = KERNELS_FUNCTIONS[op[1:]]
-            par = params_name[num:num+KERNELS_LENGTH[op[1:]]]
+            par = params_name[num : num + KERNELS_LENGTH[op[1:]]]
             if not method:
                 raise NotImplementedError("Method %s not implemented" % op[1:])
             cov = tf.math.multiply(cov, method(X, X, [params[p] for p in par]))
@@ -177,42 +164,70 @@ def log_cholesky_l_test(X, Y, params, kernel):
         elif op[0] == "C":
             kernel_list = op[3:-1].replace(" ", "").split(",")
             left_method = KERNELS_FUNCTIONS[kernel_list[0][2:-1]]
-            par_name_left_method = params_name[num:num +
-                                               KERNELS_LENGTH[kernel_list[0][2:-1]]]
+            par_name_left_method = params_name[
+                num : num + KERNELS_LENGTH[kernel_list[0][2:-1]]
+            ]
             num += KERNELS_LENGTH[kernel_list[0][2:-1]]
             right_method = KERNELS_FUNCTIONS[kernel_list[1][2:-1]]
-            par_name_right_method = params_name[num:num +
-                                                KERNELS_LENGTH[kernel_list[1][2:-1]]]
+            par_name_right_method = params_name[
+                num : num + KERNELS_LENGTH[kernel_list[1][2:-1]]
+            ]
             num += KERNELS_LENGTH[kernel_list[1][2:-1]]
-            par_name_sigmoid, num = params_name[num:num+2], num+2
-            cov += CP(X, X, [params[p] for p in par_name_sigmoid], left_method, right_method, [
-                      params[p] for p in par_name_left_method], [params[p] for p in par_name_right_method])
+            par_name_sigmoid, num = params_name[num : num + 2], num + 2
+            cov += CP(
+                X,
+                X,
+                [params[p] for p in par_name_sigmoid],
+                left_method,
+                right_method,
+                [params[p] for p in par_name_left_method],
+                [params[p] for p in par_name_right_method],
+            )
     decomposed, _jitter, loop = False, 10e-7, 0
     try:
-        _L = tf.cast(tf.linalg.cholesky(tf.cast(cov+(params["noise"]+_jitter)*tf.eye(
-            X.shape[0], dtype=_precision), dtype=_precision)), dtype=_precision)
+        _L = tf.cast(
+            tf.linalg.cholesky(
+                tf.cast(
+                    cov
+                    + (params["noise"] + _jitter)
+                    * tf.eye(X.shape[0], dtype=_precision),
+                    dtype=_precision,
+                )
+            ),
+            dtype=_precision,
+        )
     except Exception as e:
         print(e)
     _temp = tf.cast(tf.linalg.solve(_L, Y), dtype=_precision)
     alpha = tf.cast(tf.linalg.solve(tf.transpose(_L), _temp), dtype=_precision)
-    loss = 0.5*tf.cast(tf.matmul(tf.transpose(Y), alpha), dtype=_precision) + tf.cast(tf.math.log(
-        tf.linalg.det(_L)), dtype=_precision) + 0.5*tf.cast(X.shape[0]*tf.math.log([PI*2]), dtype=_precision)
+    loss = (
+        0.5 * tf.cast(tf.matmul(tf.transpose(Y), alpha), dtype=_precision)
+        + tf.cast(tf.math.log(tf.linalg.det(_L)), dtype=_precision)
+        + 0.5 * tf.cast(X.shape[0] * tf.math.log([PI * 2]), dtype=_precision)
+    )
     return loss
 
 
-def train_step(model, iteration, X_train, Y_train, kernels_name, OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
-    '''
-        Single step of training using first ordre stochastic gradient descent 
-    inputs 
-        model CustomModel object 
-        iteration int itération counter non used 
+def train_step(
+    model,
+    iteration,
+    X_train,
+    Y_train,
+    kernels_name,
+    OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06),
+):
+    """
+        Single step of training using first ordre stochastic gradient descent
+    inputs
+        model CustomModel object
+        iteration int itération counter non used
         X_train tf Tensor,
         Y_train tf Tensor,
         kernels_names list , list of kernels of the model
-        OPTIMIZER tf.optimizers 
-    outputs 
-        val float, objective function value 
-    '''
+        OPTIMIZER tf.optimizers
+    outputs
+        val float, objective function value
+    """
     with tf.GradientTape(persistent=False) as tape:
         tape.watch(model.variables)
         val = model(X_train, Y_train, kernels_name)
@@ -224,50 +239,29 @@ def train_step(model, iteration, X_train, Y_train, kernels_name, OPTIMIZER=tf.op
     return val
 
 
-def train_step_single(model, iteration, X_train, Y_train, kernels_name, OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
-    '''
-        Single step of training using first ordre stochastic gradient descent 
-    inputs 
-        model CustomModel object 
-        iteration int itération counter non used 
+def train_step_single(
+    model,
+    iteration,
+    X_train,
+    Y_train,
+    kernels_name,
+    OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06),
+):
+    """
+        Single step of training using first ordre stochastic gradient descent
+    inputs
+        model CustomModel object
+        iteration int itération counter non used
         X_train tf Tensor,
         Y_train tf Tensor,
         kernels_names list , list of kernels of the model
-        OPTIMIZER tf.optimizers 
-    outputs 
-        val float, objective function value 
-    '''
+        OPTIMIZER tf.optimizers
+    outputs
+        val float, objective function value
+    """
     with tf.GradientTape(persistent=False) as tape:
         tape.watch(model.variables)
         val = model(X_train, Y_train)
-    gradient = tape.gradient(val, model.variables)
-    try:
-        OPTIMIZER.apply_gradients(zip(gradient, model.variables))
-    except Exception as e:
-        OPTIMIZER.apply_gradients(gradient, model.variables)
-    return val
-
-
-def train_step_search(X, Y, X_s, OPTIMIZER=tf.optimizers.Adamax(learning_rate=0.06)):
-    '''
-        Single step of training using first ordre stochastic gradient descent 
-    inputs 
-        model CustomModel object 
-        iteration int itération counter non used 
-        X_train tf Tensor,
-        Y_train tf Tensor,
-        kernels_names list , list of kernels of the model
-        OPTIMIZER tf.optimizers 
-    outputs 
-        val float, objective function value 
-    '''
-    with tf.GradientTape(persistent=False) as tape:
-        tape.watch(model.variables)
-        model, kernel = launch_analysis(X, Y, X_s, straigth=True, do_plot=True, depth=3, verbose=True, initialisation_restart=1,
-                                        reduce_data=False, experimental_multiprocessing=False, GPY=False, use_changepoint=False)
-        mu, cov = model.predict(X, Y, X_s, kernel)
-        val, _, _ = get_values(mu.numpy().reshape(-1,),
-                               cov.numpy(), nb_samples=100)
     gradient = tape.gradient(val, model.variables)
     try:
         OPTIMIZER.apply_gradients(zip(gradient, model.variables))
@@ -311,8 +305,8 @@ def function_factory(model, loss_f, X, Y, params, kernel):
 
     for i, shape in enumerate(shapes):
         n = np.product(shape)
-        idx.append(tf.reshape(tf.range(count, count+n, dtype=tf.int32), shape))
-        part.extend([i]*n)
+        idx.append(tf.reshape(tf.range(count, count + n, dtype=tf.int32), shape))
+        part.extend([i] * n)
         count += n
 
     part = tf.constant(part)
@@ -326,7 +320,8 @@ def function_factory(model, loss_f, X, Y, params, kernel):
         params = tf.dynamic_partition(params_1d, part, n_tensors)
         for i, (shape, param) in enumerate(zip(shapes, params)):
             model._opti_variables[i].assign(
-                tf.cast(tf.reshape(param, shape), dtype=_precision))
+                tf.cast(tf.reshape(param, shape), dtype=_precision)
+            )
 
     # now create a function that will be returned by this factory
 
@@ -352,12 +347,12 @@ def function_factory(model, loss_f, X, Y, params, kernel):
 
         # print out iteration & loss
         # f.iter.assign_add(1)
-        #tf.print("Iter:", f.iter, "loss:", loss_value)
+        # tf.print("Iter:", f.iter, "loss:", loss_value)
 
         # store loss value so we can retrieve later
         tf.py_function(f.history.append, inp=[loss_value], Tout=[])
         # return loss_value ,grads
-        return np.array(loss_value, order='F'), np.array(grads, order='F')
+        return np.array(loss_value, order="F"), np.array(grads, order="F")
 
     # store these information as members so we can use them outside the scope
     f.iter = tf.convert_to_tensor(0)

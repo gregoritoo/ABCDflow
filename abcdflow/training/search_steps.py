@@ -1,18 +1,17 @@
-
 import math as m
 
 
 import GPy
 from termcolor import colored
 
-from .kernels_utils import KERNELS, KERNELS_LENGTH, KERNELS_OPS, GPY_KERNELS
+from ..kernels.kernels_utils import KERNELS, KERNELS_LENGTH, KERNELS_OPS, GPY_KERNELS
 from .search import *
-from .Regressor import *
-from .Regressor_GPy import *
-from .kernels_utils import *
+from ..regressors.Regressor import *
+from ..regressors.Regressor_GPy import *
+from ..kernels.kernels_utils import *
 from .training_utils import *
-from .plotting_utils import *
-from .training import train, update_current_best_model
+from ..plots.plotting_utils import *
+from .training_utils import train, update_current_best_model
 
 
 def search_step(
@@ -76,20 +75,22 @@ def search_step(
                     and failed_counter < initialisation_restart * 2
                 ):
                     try:
-                        kernel_training_step(X_train,
-                                             Y_train,
-                                             BEST_MODELS,
-                                             TEMP_BEST_MODELS,
-                                             nb_restart,
-                                             nb_iter,
-                                             prune,
-                                             verbose,
-                                             OPTIMIZER,
-                                             kernels,
-                                             init_values,
-                                             kernel_list,
-                                             kernels_name,
-                                             mode="lfbgs")
+                        kernel_training_step(
+                            X_train,
+                            Y_train,
+                            BEST_MODELS,
+                            TEMP_BEST_MODELS,
+                            nb_restart,
+                            nb_iter,
+                            prune,
+                            verbose,
+                            OPTIMIZER,
+                            kernels,
+                            init_values,
+                            kernel_list,
+                            kernels_name,
+                            mode="lfbgs",
+                        )
                     except Exception as e:
                         failed_counter += 1
             else:
@@ -115,20 +116,22 @@ def search_step(
         return BEST_MODELS
 
 
-def kernel_training_step(X_train,
-                         Y_train,
-                         BEST_MODELS,
-                         TEMP_BEST_MODELS,
-                         nb_restart,
-                         nb_iter,
-                         prune,
-                         verbose,
-                         OPTIMIZER,
-                         kernels,
-                         init_values,
-                         kernel_list,
-                         kernels_name,
-                         mode="lfbgs"):
+def kernel_training_step(
+    X_train,
+    Y_train,
+    BEST_MODELS,
+    TEMP_BEST_MODELS,
+    nb_restart,
+    nb_iter,
+    prune,
+    verbose,
+    OPTIMIZER,
+    kernels,
+    init_values,
+    kernel_list,
+    kernels_name,
+    mode="lfbgs",
+):
     model = CustomModel(kernels, init_values, X_train)
     model = train(
         model,

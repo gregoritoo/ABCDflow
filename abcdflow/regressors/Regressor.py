@@ -1,4 +1,3 @@
-
 import math as m
 import sys
 import os
@@ -11,16 +10,16 @@ import matplotlib.pyplot as plt
 import GPy
 from termcolor import colored
 
-from .kernels import *
-from .language import *
-from .kernels_utils import *
-from .training_utils import *
-from .plotting_utils import *
-from .search import preparekernel, decomposekernel
-from .kernels_utils import KERNELS_FUNCTIONS, KERNELS_LENGTH
+from ..kernels.kernels import *
+from ..languages.language import *
+from ..kernels.kernels_utils import *
+from ..training.training_utils import *
+from ..plots.plotting_utils import *
+from ..training.search import preparekernel, decomposekernel
+from ..kernels.kernels_utils import KERNELS_FUNCTIONS, KERNELS_LENGTH
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.keras.backend.set_floatx('float64')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.keras.backend.set_floatx("float64")
 PI = m.pi
 _precision = tf.float64
 
@@ -31,77 +30,100 @@ def convert_tensor(X_train):
 
 
 class CustomModel(object):
-    '''
-        Custom model to do gaussian processes regression 
-    '''
+    """
+    Custom model to do gaussian processes regression
+    """
 
     def __init__(self, params, existing=None, X_train=None, use_noise=True):
-        '''
-            Initialize default class dic with parameters corresponding to kernels 
+        """
+            Initialize default class dic with parameters corresponding to kernels
         inputs :
             params dic, containing parameters according to the kernels
             existing dic, containing parameters with converged values of previous training (in order to initialize optimization at previous minimum)
         outputs :
             None
-        '''
+        """
 
         for attr in params.keys():
             pars = params[attr]
             for var in pars:
                 if existing is None:
                     if var[:4] == "cp_s":
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=0.95, maxval=1.1))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=0.95, maxval=1.1
+                            ),
+                        )
                     elif var[:5] == "cp_x0":
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=5., maxval=float(len(X_train))))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=5.0, maxval=float(len(X_train))
+                            ),
+                        )
                     else:
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=1e-2, maxval=20.0
+                            ),
+                        )
 
                 else:
                     if var in existing.keys():
                         self.__dict__[var] = tf.Variable(
-                            existing[var], dtype=_precision)
+                            existing[var], dtype=_precision
+                        )
 
                     elif var[:4] == "cp_s":
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=0.95, maxval=1.))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=0.95, maxval=1.0
+                            ),
+                        )
                     elif var[:4] == "cp_x0":
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=10., maxval=float(len(X_train))))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=10.0, maxval=float(len(X_train))
+                            ),
+                        )
                     else:
-                        self.__dict__[var] = tf.compat.v1.get_variable(var,
-                                                                       dtype=_precision,
-                                                                       shape=(
-                                                                           1,),
-                                                                       initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
+                        self.__dict__[var] = tf.compat.v1.get_variable(
+                            var,
+                            dtype=_precision,
+                            shape=(1,),
+                            initializer=tf.random_uniform_initializer(
+                                minval=1e-2, maxval=20.0
+                            ),
+                        )
         if use_noise:
-            self.__dict__["noise"] = tf.compat.v1.get_variable("noise",
-                                                               dtype=_precision,
-                                                               shape=(1,),
-                                                               initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.))
+            self.__dict__["noise"] = tf.compat.v1.get_variable(
+                "noise",
+                dtype=_precision,
+                shape=(1,),
+                initializer=tf.random_uniform_initializer(minval=1e-2, maxval=20.0),
+            )
         else:
-            self.__dict__["noise"] = tf.Variable(0., dtype=_precision)
+            self.__dict__["noise"] = tf.Variable(0.0, dtype=_precision)
 
     @property
     def initialisation_values(self):
-        return dict({k: v for k, v in zip(list(vars(self).keys()), list(vars(self).values()))})
+        return dict(
+            {k: v for k, v in zip(list(vars(self).keys()), list(vars(self).values()))}
+        )
 
     @property
     def variables(self):
@@ -144,8 +166,13 @@ class CustomModel(object):
         print("\n Parameters of  : {}".format(kernels))
         print("   var name               |               value")
         for name, value in zip(self._opti_variables_name, self.variables):
-            print("   {}".format(str(name))+" "*int(23-int(len(str(name))))+"|" +
-                  " "*int(23-int(len(str(value.numpy()))))+"{}".format(value.numpy()))
+            print(
+                "   {}".format(str(name))
+                + " " * int(23 - int(len(str(name))))
+                + "|"
+                + " " * int(23 - int(len(str(value.numpy()))))
+                + "{}".format(value.numpy())
+            )
 
     def evaluate_posterior(self, X_train, Y_train, X_s, kernels_name, params):
         """[summary]
@@ -185,8 +212,7 @@ class CustomModel(object):
             X_s = convert_tensor(X_s)
         except Exception as e:
             pass
-        mu, cov = self.evaluate_posterior(
-            X_train, Y_train, X_s, kernels_name, params)
+        mu, cov = self.evaluate_posterior(X_train, Y_train, X_s, kernels_name, params)
         return mu, cov
 
     def _get_cov(self, X, Y, kernel, params):
@@ -213,38 +239,44 @@ class CustomModel(object):
             op = op.replace(":INC_SIG", "")
             if op[0] == "+":
                 method = KERNELS_FUNCTIONS[op[1:]]
-                par = params_name[num:num+KERNELS_LENGTH[op[1:]]]
+                par = params_name[num : num + KERNELS_LENGTH[op[1:]]]
                 if not method:
-                    raise NotImplementedError(
-                        "Method %s not implemented" % op[1:])
+                    raise NotImplementedError("Method %s not implemented" % op[1:])
                 cov += method(X, Y, [params[p] for p in par])
                 num += KERNELS_LENGTH[op[1:]]
             elif op[0] == "*":
                 method = KERNELS_FUNCTIONS[op[1:]]
-                par = params_name[num:num+KERNELS_LENGTH[op[1:]]]
+                par = params_name[num : num + KERNELS_LENGTH[op[1:]]]
                 if not method:
-                    raise NotImplementedError(
-                        "Method %s not implemented" % op[1:])
-                cov = tf.math.multiply(cov, method(
-                    X, Y, [params[p] for p in par]))
+                    raise NotImplementedError("Method %s not implemented" % op[1:])
+                cov = tf.math.multiply(cov, method(X, Y, [params[p] for p in par]))
                 num += KERNELS_LENGTH[op[1:]]
             elif op[0] == "C":
                 kernel_list = op[3:-1].replace(" ", "").split(",")
                 left_method = KERNELS_FUNCTIONS[kernel_list[0][2:-1]]
-                par_name_left_method = params_name[num:num +
-                                                   KERNELS_LENGTH[kernel_list[0][2:-1]]]
+                par_name_left_method = params_name[
+                    num : num + KERNELS_LENGTH[kernel_list[0][2:-1]]
+                ]
                 num += KERNELS_LENGTH[kernel_list[0][2:-1]]
                 right_method = KERNELS_FUNCTIONS[kernel_list[1][2:-1]]
-                par_name_right_method = params_name[num:num +
-                                                    KERNELS_LENGTH[kernel_list[1][2:-1]]]
+                par_name_right_method = params_name[
+                    num : num + KERNELS_LENGTH[kernel_list[1][2:-1]]
+                ]
                 num += KERNELS_LENGTH[kernel_list[1][2:-1]]
-                par_name_sigmoid, num = params_name[num:num+2], num+2
-                cov += CP(X, Y, [params[p] for p in par_name_sigmoid], left_method, right_method, [
-                          params[p] for p in par_name_left_method], [params[p] for p in par_name_right_method])
+                par_name_sigmoid, num = params_name[num : num + 2], num + 2
+                cov += CP(
+                    X,
+                    Y,
+                    [params[p] for p in par_name_sigmoid],
+                    left_method,
+                    right_method,
+                    [params[p] for p in par_name_left_method],
+                    [params[p] for p in par_name_right_method],
+                )
         return cov
 
     def compute_BIC(self, X_train, Y_train, kernels_name):
-        """ Evaluate the Bayesian information ciriterion
+        """Evaluate the Bayesian information ciriterion
 
         Args:
             X_train (numpy array): training points
@@ -257,14 +289,13 @@ class CustomModel(object):
         n = tf.Variable(X_train.shape[0], dtype=_precision)
         k = tf.Variable(len(params), dtype=_precision)
         try:
-            ll = log_cholesky_l_test(
-                X_train, Y_train, params, kernel=kernels_name)
+            ll = log_cholesky_l_test(X_train, Y_train, params, kernel=kernels_name)
         except Exception:
             pass
-        return -ll - 0.5*k*tf.math.log(n)
+        return -ll - 0.5 * k * tf.math.log(n)
 
     def plot(self, mu, cov, X_train, Y_train, X_s, kernel_name=None):
-        """ Plot the predicted points with the confidence interval
+        """Plot the predicted points with the confidence interval
 
         Args:
             mu (tf tensor): predicted mean
@@ -272,21 +303,27 @@ class CustomModel(object):
             X_train (numpy array): training points
             Y_train (numpy array): training points
             kernels_name (list): list of kernels. Defaults to None.
-            X_s (tf tensor): predicted points 
+            X_s (tf tensor): predicted points
         """
         Y_train, X_train, X_s = Y_train, X_train, X_s
         mean, stdp, stdi = get_values(
-            mu.numpy().reshape(-1,), cov.numpy(), nb_samples=100)
+            mu.numpy().reshape(
+                -1,
+            ),
+            cov.numpy(),
+            nb_samples=100,
+        )
         if kernel_name is not None and kernel_name[:2] != "CP":
-            plt.title("kernel : "+''.join(kernel_name)[1:])
+            plt.title("kernel : " + "".join(kernel_name)[1:])
         elif kernel_name is not None:
-            plt.title("kernel : C"+''.join(kernel_name)[:])
-        plot_gs_pretty(Y_train, np.array(mean), X_train,
-                       X_s, np.array(stdp), np.array(stdi))
+            plt.title("kernel : C" + "".join(kernel_name)[:])
+        plot_gs_pretty(
+            Y_train, np.array(mean), X_train, X_s, np.array(stdp), np.array(stdi)
+        )
         plt.show()
 
     def _compute_posterior(self, y, cov, cov_s, cov_ss):
-        """ Compute posterior mean and covariance 
+        """Compute posterior mean and covariance
 
         Args:
             y ([type]): [description]
@@ -298,10 +335,24 @@ class CustomModel(object):
             [type]: [description]
         """
         params = self._variables
-        mu = tf.matmul(tf.matmul(tf.transpose(cov_s), tf.linalg.inv(
-            cov+params["noise"]*tf.eye(cov.shape[0], dtype=_precision))), y)
-        cov = cov_ss - tf.matmul(tf.matmul(tf.transpose(cov_s), tf.linalg.inv(
-            cov+params["noise"]*tf.eye(cov.shape[0], dtype=_precision))), cov_s)
+        mu = tf.matmul(
+            tf.matmul(
+                tf.transpose(cov_s),
+                tf.linalg.inv(
+                    cov + params["noise"] * tf.eye(cov.shape[0], dtype=_precision)
+                ),
+            ),
+            y,
+        )
+        cov = cov_ss - tf.matmul(
+            tf.matmul(
+                tf.transpose(cov_s),
+                tf.linalg.inv(
+                    cov + params["noise"] * tf.eye(cov.shape[0], dtype=_precision)
+                ),
+            ),
+            cov_s,
+        )
         return mu, cov
 
     def split_params(self, kernel_list):
@@ -318,21 +369,21 @@ class CustomModel(object):
         pos = 0
         for element in kernel_list:
             if element[1] == "P" and element[:2] != "CP":
-                list_params.append(params[pos:pos+3])
+                list_params.append(params[pos : pos + 3])
                 pos += 3
             elif element[:2] == "CP":
                 chgs_p = remove_useless_term_changepoint(element)
                 for kernels in chgs_p:
                     if kernels[1] == "P":
-                        list_params.append(params[pos:pos+3])
+                        list_params.append(params[pos : pos + 3])
                         pos += 3
                     else:
-                        list_params.append(params[pos:pos+2])
+                        list_params.append(params[pos : pos + 2])
                         pos += 2
-                list_params.append(params[pos:pos+2])
+                list_params.append(params[pos : pos + 2])
                 pos += 2
             else:
-                list_params.append(params[pos:pos+2])
+                list_params.append(params[pos : pos + 2])
                 pos += 2
         return list_params
 
@@ -348,13 +399,15 @@ class CustomModel(object):
         splitted, pos = devellopement(kernel_list)
         summary = "The signal has {} componants :\n".format(len(splitted))
         for element in splitted:
-            summary = comment(
-                summary, element, pos[loop_counter], params_dic, list_params) + "\n"
+            summary = (
+                comment(summary, element, pos[loop_counter], params_dic, list_params)
+                + "\n"
+            )
             loop_counter += 1
-        summary = summary + \
-            "\t It also has a noise component of {:.1f} .".format(
-                self._variables["noise"].numpy()[0])
-        print(colored('[DESCRIPTION]', 'blue'), summary)
+        summary = summary + "\t It also has a noise component of {:.1f} .".format(
+            self._variables["noise"].numpy()[0]
+        )
+        print(colored("[DESCRIPTION]", "blue"), summary)
 
     def decompose(self, kernel_list, X_train, Y_train, X_s):
         """[summary]
@@ -374,14 +427,13 @@ class CustomModel(object):
             kernels = decomposekernel(element)
             if len(kernels) < 1:
                 kernels = preparekernel(element)
-            list_of_dic = [list_params[position]
-                           for position in pos[loop_counter]]
+            list_of_dic = [list_params[position] for position in pos[loop_counter]]
             merged = list(itertools.chain(*list_of_dic))
             dictionary = dict(zip(merged, [params_dic[one] for one in merged]))
             dictionary.update({"noise": self.__dict__["noise"]})
             decomp_model = CustomModel(params=kernels, existing=dictionary)
             mu, cov = decomp_model.predict(X_train, Y_train, X_s, element)
-            plt.title("kernel :"+''.join(element)[1:])
+            plt.title("kernel :" + "".join(element)[1:])
             decomp_model.plot(mu, cov, X_train, Y_train, X_s, kernel_name=None)
             plt.show(block=True)
             plt.close()

@@ -9,12 +9,12 @@ import GPy
 from .kernels import *
 
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.get_logger().setLevel('INFO')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.get_logger().setLevel("INFO")
 
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.keras.backend.set_floatx('float64')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.keras.backend.set_floatx("float64")
 
 
 PI = m.pi
@@ -64,7 +64,6 @@ KERNELS_FUNCTIONS = {
     "RQ": RQ,
     "CONST": CONST,
     "WN": WN,
-
 }
 
 

@@ -10,13 +10,12 @@ import seaborn as sn
 import GPy
 from termcolor import colored
 
-from .language import *
-from .kernels_utils import *
-from .training_utils import *
-from .plotting_utils import *
-from .search import preparekernel, decomposekernel
-from .kernels_utils import KERNELS_FUNCTIONS
-
+from ..languages.language import *
+from ..kernels.kernels_utils import *
+from ..kernels.kernels_utils import KERNELS_FUNCTIONS
+from ..training.training_utils import *
+from ..training.search import preparekernel, decomposekernel
+from ..plots.plotting_utils import *
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 tf.keras.backend.set_floatx("float64")
@@ -51,13 +50,13 @@ class GPyWrapper:
         pos = 0
         for element in kernel_list:
             if element[1] == "P":
-                list_params.append(params_values[pos: pos + 3])
+                list_params.append(params_values[pos : pos + 3])
                 pos += 3
             elif element[1] == "L":
-                list_params.append(params_values[pos: pos + 1])
+                list_params.append(params_values[pos : pos + 1])
                 pos += 1
             else:
-                list_params.append(params_values[pos: pos + 2])
+                list_params.append(params_values[pos : pos + 2])
                 pos += 2
         return list_params
 
@@ -76,9 +75,9 @@ class GPyWrapper:
                 + "\n"
             )
             loop_counter += 1
-        summary = summary + \
-            "\t It also has a noise component of {:.1f} .".format(
-                variables[-1])
+        summary = summary + "\t It also has a noise component of {:.1f} .".format(
+            variables[-1]
+        )
         print(summary)
 
     def view_parameters(self, kernels):
@@ -92,16 +91,14 @@ class GPyWrapper:
         counter = 0
         for element in splitted:
             kernels = preparekernel(element)
-            list_of_dic = [list_params[position]
-                           for position in pos[loop_counter]]
+            list_of_dic = [list_params[position] for position in pos[loop_counter]]
             params = [list_params[position] for position in pos[loop_counter]]
             loop_counter += 1
             try:
                 k = self._gpy_kernels_from_names(element, params)
             except Exception as e:
                 print(e)
-            model = GPy.models.GPRegression(
-                X_train, Y_train, k, normalizer=False)
+            model = GPy.models.GPRegression(X_train, Y_train, k, normalizer=False)
             model.plot()
             loop_counter += 1
 

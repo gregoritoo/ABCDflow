@@ -21,13 +21,13 @@ import scipy
 from gpflow.utilities import print_summary
 from termcolor import colored
 
-from .kernels_utils import KERNELS, KERNELS_LENGTH, KERNELS_OPS, GPY_KERNELS
+from ..kernels.kernels_utils import KERNELS, KERNELS_LENGTH, KERNELS_OPS, GPY_KERNELS
 from .search import *
-from .Regressor import *
-from .Regressor_GPy import *
-from .kernels_utils import *
+from ..regressors.Regressor import *
+from ..regressors.Regressor_GPy import *
+from ..kernels.kernels_utils import *
 from .training_utils import *
-from .plotting_utils import *
+from ..plots.plotting_utils import *
 
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -43,12 +43,32 @@ session = tf.compat.v1.Session(config=config)
 borne = -1 * 10e40
 
 
-class Trainer():
-    def __init__(self, X_train, Y_train, X_s, nb_restart=15, nb_iter=2, do_plot=False,
-                 save_model=False, prune=False, OPTIMIZER=tf.optimizers.Adam(0.001), parralelize_code=False,
-                 verbose=False, nb_by_step=None, loop_size=10, experimental_multiprocessing=False,
-                 reduce_data=False, straigth=True, depth=5, initialisation_restart=5, GPY=False,
-                 mode="lfbgs", use_changepoint=False, base_kernels=["+PER", "+LIN", "+SE"]):
+class Trainer:
+    def __init__(
+        self,
+        X_train,
+        Y_train,
+        X_s,
+        nb_restart=15,
+        nb_iter=2,
+        do_plot=False,
+        save_model=False,
+        prune=False,
+        OPTIMIZER=tf.optimizers.Adam(0.001),
+        parralelize_code=False,
+        verbose=False,
+        nb_by_step=None,
+        loop_size=10,
+        experimental_multiprocessing=False,
+        reduce_data=False,
+        straigth=True,
+        depth=5,
+        initialisation_restart=5,
+        GPY=False,
+        mode="lfbgs",
+        use_changepoint=False,
+        base_kernels=["+PER", "+LIN", "+SE"],
+    ):
         self.X_train = X_train
         self.Y_train = Y_train
         self.X_s = X_s
@@ -116,39 +136,35 @@ class Trainer():
 
     def griddy_search(self, i):
         model, kernels = self.analyse(i)
-        name = './best_models/best_model'
+        name = "./best_models/best_model"
         if self.do_plot:
             try:
-                mu, cov = model.predict(
-                    self.X_train, self.Y_train, self.X_s, kernels)
-                model.plot(mu, cov, self.X_train,
-                           self. Y_train, self.X_s, kernels)
+                mu, cov = model.predict(self.X_train, self.Y_train, self.X_s, kernels)
+                model.plot(mu, cov, self.X_train, self.Y_train, self.X_s, kernels)
             except:
                 model.plot()
             plt.show()
         if self.save_model:
-            with open(name, 'wb') as f:
+            with open(name, "wb") as f:
                 pickle.dump(model, f)
-            with open('./best_models/kernels', 'wb') as f:
+            with open("./best_models/kernels", "wb") as f:
                 pickle.dump(kernels, f)
         return model, kernels
 
     def monothreaded_straight_analysis(self, i):
         model, kernels = self.straigth_analyse(i)
-        name = './best_models/best_model'
+        name = "./best_models/best_model"
         if self.do_plot:
             try:
-                mu, cov = model.predict(
-                    self.X_train, self.Y_train, self.X_s, kernels)
-                model.plot(mu, cov, self.X_train,
-                           self. Y_train, self.X_s, kernels)
+                mu, cov = model.predict(self.X_train, self.Y_train, self.X_s, kernels)
+                model.plot(mu, cov, self.X_train, self.Y_train, self.X_s, kernels)
             except:
                 model.plot()
             plt.show()
         if self.save_model:
-            with open(name, 'wb') as f:
+            with open(name, "wb") as f:
                 pickle.dump(model, f)
-            with open('./best_models/kernels', 'wb') as f:
+            with open("./best_models/kernels", "wb") as f:
                 pickle.dump(kernels, f)
         return model, kernels
 
@@ -157,23 +173,23 @@ class Trainer():
         self.parralelize_code = True
         try:
             model, kernels = self.straigth_analyse(i)
-            name = './best_models/best_model'
+            name = "./best_models/best_model"
             if self.do_plot:
                 try:
                     mu, cov = model.predict(
-                        self.X_train, self.Y_train, self.X_s, kernels)
-                    model.plot(mu, cov, self.X_train,
-                               self. Y_train, self.X_s, kernels)
+                        self.X_train, self.Y_train, self.X_s, kernels
+                    )
+                    model.plot(mu, cov, self.X_train, self.Y_train, self.X_s, kernels)
                 except:
                     model.plot()
                 plt.show()
             if self.save_model:
-                with open(name, 'wb') as f:
+                with open(name, "wb") as f:
                     pickle.dump(model, f)
-                with open('./best_models/kernels', 'wb') as f:
+                with open("./best_models/kernels", "wb") as f:
                     pickle.dump(kernels, f)
         except Exception as e:
-            print('failed to converge')
+            print("failed to converge")
         return model, kernels
 
     def analyse(self, i):
@@ -186,8 +202,9 @@ class Trainer():
             BEST_MODELS["model_list"] : list, array of best model
         """
         if i == -1:
-            COMB = search("", [], True, self.depth,
-                          self.use_changepoint, self.base_kernels)
+            COMB = search(
+                "", [], True, self.depth, self.use_changepoint, self.base_kernels
+            )
         else:
             name = "search/model_list_" + str(i)
             with open(name, "rb") as f:
@@ -215,22 +232,21 @@ class Trainer():
             if self.prune:
                 if iteration % loop_size == 0:
                     j = 0
-                    TEMP_BEST_MODELS = TEMP_BEST_MODELS[:self.nb_by_step]
+                    TEMP_BEST_MODELS = TEMP_BEST_MODELS[: self.nb_by_step]
                     _before_len = len(COMB)
-                    COMB = prune(
-                        TEMP_BEST_MODELS["Name"].tolist(), COMB[iteration:])
+                    COMB = prune(TEMP_BEST_MODELS["Name"].tolist(), COMB[iteration:])
                     _to_add = _before_len - len(COMB) - 1
                     iteration += _to_add
                 BEST_MODELS, TEMP_BEST_MODELS = self.search_step(
-                    combi, BEST_MODELS, TEMP_BEST_MODELS)
+                    combi, BEST_MODELS, TEMP_BEST_MODELS
+                )
                 TEMP_BEST_MODELS = TEMP_BEST_MODELS.sort_values(
                     by=["score"], ascending=True
-                )[:self.nb_by_step]
+                )[: self.nb_by_step]
                 print_trainning_steps(iteration, full_length, combi)
             else:
                 COMB, j = COMB[1:], 0
-                BEST_MODELS = self.search_step(
-                    combi, BEST_MODELS, TEMP_BEST_MODELS)
+                BEST_MODELS = self.search_step(combi, BEST_MODELS, TEMP_BEST_MODELS)
                 print_trainning_steps(iteration, full_length, combi)
             sys.stdout.write("\n")
             sys.stdout.flush()
@@ -240,13 +256,16 @@ class Trainer():
             print(
                 colored("[STATE]", "red"),
                 "model BIC is {}".format(
-                    model.compute_BIC(self.X_train, self.Y_train,
-                                      BEST_MODELS["model_list"])
+                    model.compute_BIC(
+                        self.X_train, self.Y_train, BEST_MODELS["model_list"]
+                    )
                 ),
             )
         return BEST_MODELS["model"], BEST_MODELS["model_list"]
 
-    def search_step(self, combi, BEST_MODELS, TEMP_BEST_MODELS, unique=False, single=False):
+    def search_step(
+        self, combi, BEST_MODELS, TEMP_BEST_MODELS, unique=False, single=False
+    ):
         """
             Launch the training of a single gaussian process : Create model, initialize params with the params of the previous best models, launch the optimization
             compute BIC and update the best models array if BIC > best_model's score
@@ -277,11 +296,11 @@ class Trainer():
                         and failed < self.initialisation_restart * 2
                     ):
                         try:
-                            model = CustomModel(
-                                kernels, init_values, self.X_train)
+                            model = CustomModel(kernels, init_values, self.X_train)
                             model = self.train(model, kernel_list)
                             BIC = model.compute_BIC(
-                                self.X_train, self.Y_train, kernel_list)
+                                self.X_train, self.Y_train, kernel_list
+                            )
                             if self.verbose:
                                 print("[STATE] ", BIC)
                             BEST_MODELS = update_current_best_model(
@@ -314,8 +333,7 @@ class Trainer():
                         ]
         except Exception as e:
             print(e)
-            print(colored("[ERROR]", "red"),
-                  " error with kernel :", kernels_name)
+            print(colored("[ERROR]", "red"), " error with kernel :", kernels_name)
         if self.prune:
             return BEST_MODELS, TEMP_BEST_MODELS
         else:
@@ -347,10 +365,11 @@ class Trainer():
             if loop > 1:
                 # COMB = search_and_add(tuple(BEST_MODELS["model_list"]),use_changepoint)
                 COMB = search_and_add(
-                    tuple(BEST_MODELS["model_list"]), False, self.base_kernels)
+                    tuple(BEST_MODELS["model_list"]), False, self.base_kernels
+                )
                 print(
-                    colored("[STATE]", "red"), " Next combinaison to try : {}".format(
-                        COMB)
+                    colored("[STATE]", "red"),
+                    " Next combinaison to try : {}".format(COMB),
                 )
             iteration, j = 0, 0
             if self.parralelize_code:
@@ -370,12 +389,10 @@ class Trainer():
                 if constant > 1:
                     return BEST_MODELS["model"], BEST_MODELS["model_list"]
                 if loop > 2:
-                    new_COMB = replacekernel(
-                        BEST_MODELS["model_list"])  # swap step
+                    new_COMB = replacekernel(BEST_MODELS["model_list"])  # swap step
                     print(
                         colored("[STATE]", "red"),
-                        " Trying to switch kernels : trying {} ".format(
-                            new_COMB),
+                        " Trying to switch kernels : trying {} ".format(new_COMB),
                     )
                     outputs = self.parralelize(COMB, BEST_MODELS)
                     BEST_MODELS = update_best_model_after_parallelized_step(
@@ -390,8 +407,7 @@ class Trainer():
                     iteration += 1
                     j += 1
                     count += 1
-                    TEMP_MODELS = self.search_step(
-                        combi, BEST_MODELS, TEMP_BEST_MODELS)
+                    TEMP_MODELS = self.search_step(combi, BEST_MODELS, TEMP_BEST_MODELS)
                     print_trainning_steps(count, train_length, combi)
                 if TEMP_MODELS["score"] > BEST_MODELS["score"]:
                     BEST_MODELS = TEMP_MODELS
@@ -402,12 +418,10 @@ class Trainer():
                     ),
                 )
                 if loop > 2 and len(BEST_MODELS["model_list"]) > 2:
-                    new_COMB = replacekernel(
-                        BEST_MODELS["model_list"])  # swap step
+                    new_COMB = replacekernel(BEST_MODELS["model_list"])  # swap step
                     print(
                         colored("[STATE]", "red"),
-                        " Trying to switch kernels : trying {} ".format(
-                            new_COMB),
+                        " Trying to switch kernels : trying {} ".format(new_COMB),
                     )
                     j = 0
                     while j < len(new_COMB):
@@ -417,14 +431,14 @@ class Trainer():
                             break
                         j += 1
                         TEMP_MODELS = self.search_step(
-                            combi, BEST_MODELS, TEMP_BEST_MODELS)
+                            combi, BEST_MODELS, TEMP_BEST_MODELS
+                        )
                         print_trainning_steps(count, train_length, combi)
                     if TEMP_MODELS["score"] > BEST_MODELS["score"]:
                         BEST_MODELS = TEMP_MODELS
             print(
                 colored("[STATE]", "red"),
-                " The best model is {} after swap ".format(
-                    BEST_MODELS["model_list"]),
+                " The best model is {} after swap ".format(BEST_MODELS["model_list"]),
             )
         if not self.GPY and self.verbose:
             model = BEST_MODELS["model"]
@@ -432,8 +446,9 @@ class Trainer():
             print(
                 colored("[STATE]", "red"),
                 " model BIC is {}".format(
-                    model.compute_BIC(self.X_train, self.Y_train,
-                                      BEST_MODELS["model_list"])
+                    model.compute_BIC(
+                        self.X_train, self.Y_train, BEST_MODELS["model_list"]
+                    )
                 ),
             )
         else:
@@ -542,8 +557,7 @@ class Trainer():
                         try:
                             model = CustomModel(kernels, init_values, X_train)
                             model = self.train(model, kernel_list)
-                            BIC = model.compute_BIC(
-                                X_train, Y_train, kernel_list)
+                            BIC = model.compute_BIC(X_train, Y_train, kernel_list)
                             BEST_MODELS = update_current_best_model(
                                 BEST_MODELS, model, BIC, kernel_list, kernels_name
                             )
@@ -566,8 +580,7 @@ class Trainer():
                         print(e)
         except Exception as e:
             print(e)
-            print(colored("[ERROR]", "red"),
-                  " error with kernel :", kernels_name)
+            print(colored("[ERROR]", "red"), " error with kernel :", kernels_name)
         else:
             return BEST_MODELS
 
@@ -593,7 +606,12 @@ class Trainer():
                             if loop > 10:
                                 OPTIMIZER.learning_rate.assign(0.001)
                             val = train_step(
-                                model, iteration, self.X_train, self.Y_train, kernels_name, OPTIMIZER
+                                model,
+                                iteration,
+                                self.X_train,
+                                self.Y_train,
+                                kernels_name,
+                                OPTIMIZER,
                             )
                             if np.isnan(val):
                                 loop += 1
@@ -602,12 +620,11 @@ class Trainer():
                                 "\r"
                                 + "=" * int(iteration / self.nb_iter * 50)
                                 + ">"
-                                + "." *
-                                int((self.nb_iter - iteration) / self.nb_iter * 50)
+                                + "."
+                                * int((self.nb_iter - iteration) / self.nb_iter * 50)
                                 + "|"
                                 + " * log likelihood  is : {:.4f} at iteration : {:.0f} at epoch : {:.0f} / {:.0f} with lr of: {}".format(
-                                    val[0][0], iteration, loop +
-                                    1, self.nb_restart, lr
+                                    val[0][0], iteration, loop + 1, self.nb_restart, lr
                                 )
                             )
                             sys.stdout.flush()
@@ -617,7 +634,11 @@ class Trainer():
                     else:
                         for iteration in range(1, self.nb_iter):
                             val = train_step(
-                                model, iteration, self.X_train, self.Y_train, kernels_name
+                                model,
+                                iteration,
+                                self.X_train,
+                                self.Y_train,
+                                kernels_name,
                             )
                         loop += 1
                 except Exception as e:
@@ -636,8 +657,7 @@ class Trainer():
                     model._opti_variables,
                     kernels_name,
                 )
-                init_params = tf.dynamic_stitch(
-                    func.idx, model._opti_variables)
+                init_params = tf.dynamic_stitch(func.idx, model._opti_variables)
                 # train the model with L-BFGS-B solver
                 bnds = define_boundaries(model, self.X_train)
                 results = scipy.optimize.minimize(
