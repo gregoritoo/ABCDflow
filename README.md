@@ -16,7 +16,7 @@ How to use it ?
 Install dependence libraries 
 
 ```
-    pip install -r abcdflow/requirements.txt
+    pip install -r requirements.txt
 ```
 
 Using tensorflow optimization
