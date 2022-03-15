@@ -27,7 +27,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 
-from abcdflow.trainer import Trainer
+from abcdflow.training.trainer import Trainer
 
 if __name__ =="__main__" :
     #load data
@@ -65,7 +65,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 
-from abcdflow.trainer import Trainer
+from abcdflow.training.trainer import Trainer
 
 if __name__ =="__main__" :
     #load data
